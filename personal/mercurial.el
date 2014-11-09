@@ -2,3 +2,4 @@
 
 (require 'monky)
 (setq monky-process-type 'cmdserver)
+;; mercurial.el ends here
