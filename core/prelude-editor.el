@@ -1,6 +1,6 @@
 ;;; prelude-editor.el --- Emacs Prelude: enhanced core editing experience.
 ;;
-;; Copyright © 2011-2015 Bozhidar Batsov
+;; Copyright © 2011-2016 Bozhidar Batsov
 ;;
 ;; Author: Bozhidar Batsov <bozhidar@batsov.com>
 ;; URL: https://github.com/bbatsov/prelude
@@ -183,6 +183,8 @@ The body of the advice is in BODY."
   "Set buffer major mode according to `auto-mode-alist'."
   (let* ((name (buffer-name buffer))
          (mode (assoc-default name auto-mode-alist 'string-match)))
+    (when (and mode (consp mode))
+      (setq mode (car mode)))
     (with-current-buffer buffer (if mode (funcall mode)))))
 
 ;; highlight the current line
@@ -194,10 +196,11 @@ The body of the advice is in BODY."
 
 ;; note - this should be after volatile-highlights is required
 ;; add the ability to cut the current line, without marking it
+(require 'rect)
 (defadvice kill-region (before smart-cut activate compile)
   "When called interactively with no active region, kill a single line instead."
   (interactive
-   (if mark-active (list (region-beginning) (region-end))
+   (if mark-active (list (region-beginning) (region-end) rectangle-mark-mode)
      (list (line-beginning-position)
            (line-beginning-position 2)))))
 
@@ -260,7 +263,6 @@ The body of the advice is in BODY."
 ;; avy allows us to effectively navigate to visible things
 (require 'avy)
 (setq avy-background t)
-(setq avy-style 'at-full)
 (setq avy-style 'at-full)
 
 ;; anzu-mode enhances isearch & query-replace by showing total matches and current match position
