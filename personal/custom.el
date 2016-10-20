@@ -17,3 +17,7 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  )
+(set-face-attribute 'default nil :height 100)
+
+(eval-after-load "dired-aux" '(add-to-list
+  'dired-compress-file-suffixes '("\\.zip\\'" ".zip" "unzip")))
