@@ -16,3 +16,6 @@
                            (web-mode-set-engine "django")))
 
 (add-hook 'prog-mode-hook 'flycheck-mode)
+
+(add-to-list 'load-path "~/workspace/html5-snippets")
+(require 'html5-snippets)
