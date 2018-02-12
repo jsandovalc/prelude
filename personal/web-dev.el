@@ -19,3 +19,12 @@
 
 (add-to-list 'load-path "~/workspace/html5-snippets")
 (require 'html5-snippets)
+
+(defun custom-web-mode-hook ()
+  "Hooks for Web mode."
+  (setq web-mode-markup-indent-offset 2)
+)
+(add-hook 'web-mode-hook  'custom-web-mode-hook)
+
+(setq web-mode-enable-auto-closing t)
+(setq web-mode-enable-auto-quoting t)
