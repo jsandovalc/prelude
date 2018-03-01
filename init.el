@@ -101,6 +101,8 @@ by Prelude.")
   (mapc 'load (directory-files prelude-personal-preload-dir 't "^[^#\.].*el$")))
 
 ;; the core stuff
+;; prelude-packages
+
 (require 'cl)
 (require 'package)
 ;; melpa
@@ -272,8 +274,125 @@ PACKAGE is installed only if not already present.  The file is opened in MODE."
        (prelude-auto-install extension package mode))))
  prelude-auto-install-alist)
 
-(require 'prelude-custom)  ;; Needs to be loaded before core, editor and ui
-(require 'prelude-ui)
+;; prelude-custom
+(defgroup prelude nil
+  "Emacs Prelude configuration."
+  :prefix "prelude-"
+  :group 'convenience)
+
+(defcustom prelude-auto-save t
+  "Non-nil values enable Prelude's auto save."
+  :type 'boolean
+  :group 'prelude)
+
+(defcustom prelude-guru t
+  "Non-nil values enable `guru-mode'."
+  :type 'boolean
+  :group 'prelude)
+
+(defcustom prelude-whitespace t
+  "Non-nil values enable Prelude's whitespace visualization."
+  :type 'boolean
+  :group 'prelude)
+
+(defcustom prelude-clean-whitespace-on-save t
+  "Cleanup whitespace from file before it's saved.
+Will only occur if `prelude-whitespace' is also enabled."
+  :type 'boolean
+  :group 'prelude)
+
+(defcustom prelude-flyspell t
+  "Non-nil values enable Prelude's flyspell support."
+  :type 'boolean
+  :group 'prelude)
+
+(defcustom prelude-user-init-file (expand-file-name "personal/"
+                                                    user-emacs-directory)
+  "Path to your personal customization file.
+Prelude recommends you only put personal customizations in the
+personal folder.  This variable allows you to specify a specific
+folder as the one that should be visited when running
+`crux-find-user-init-file'.  This can be easily set to the desired buffer
+in lisp by putting `(setq prelude-user-init-file load-file-name)'
+in the desired elisp file."
+  :type 'string
+  :group 'prelude)
+
+(defcustom prelude-indent-sensitive-modes
+  '(conf-mode coffee-mode haml-mode python-mode slim-mode yaml-mode)
+  "Modes for which auto-indenting is suppressed."
+  :type 'list
+  :group 'prelude)
+
+(defcustom prelude-yank-indent-modes '(LaTeX-mode TeX-mode)
+  "Modes in which to indent regions that are yanked (or yank-popped).
+Only modes that don't derive from `prog-mode' should be listed here."
+  :type 'list
+  :group 'prelude)
+
+(defcustom prelude-yank-indent-threshold 1000
+  "Threshold (# chars) over which indentation does not automatically occur."
+  :type 'number
+  :group 'prelude)
+
+(defcustom prelude-theme 'zenburn
+  "The default color theme, change this in your /personal/preload config."
+  :type 'symbol
+  :group 'prelude)
+
+;; prelude-ui
+(when (fboundp 'tool-bar-mode)
+  (tool-bar-mode -1))
+
+(menu-bar-mode -1)
+
+;; the blinking cursor is nothing, but an annoyance
+(blink-cursor-mode -1)
+
+;; disable the annoying bell ring
+(setq ring-bell-function 'ignore)
+
+;; disable startup screen
+(setq inhibit-startup-screen t)
+
+;; nice scrolling
+(setq scroll-margin 0
+      scroll-conservatively 100000
+      scroll-preserve-screen-position 1)
+
+;; mode line settings
+(line-number-mode t)
+(column-number-mode t)
+(size-indication-mode t)
+
+;; enable y/n answers
+(fset 'yes-or-no-p 'y-or-n-p)
+
+;; more useful frame title, that show either a file or a
+;; buffer name (if the buffer isn't visiting a file)
+(setq frame-title-format
+      '("" invocation-name " Prelude - " (:eval (if (buffer-file-name)
+                                            (abbreviate-file-name (buffer-file-name))
+                                          "%b"))))
+
+;; use zenburn as the default theme
+(when prelude-theme
+  (load-theme prelude-theme t))
+
+(require 'smart-mode-line)
+(setq sml/no-confirm-load-theme t)
+;; delegate theming to the currently active theme
+(setq sml/theme nil)
+(add-hook 'after-init-hook #'sml/setup)
+
+;; show the cursor when moving after big movements in the window
+(require 'beacon)
+(beacon-mode +1)
+
+;; show available keybindings after you start typing
+(require 'which-key)
+(which-key-mode +1)
+
 (require 'prelude-core)
 (require 'prelude-mode)
 (require 'prelude-editor)
