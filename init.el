@@ -90,6 +90,7 @@ by Prelude.")
 
 ;; reduce the frequency of garbage collection by making it happen on
 ;; each 50MB of allocated data (the default is on every 0.76MB)
+;; http://bling.github.io/blog/2016/01/18/why-are-you-changing-gc-cons-threshold/
 (setq gc-cons-threshold 50000000)
 
 ;; warn when opening files bigger than 100MB
