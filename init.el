@@ -43,11 +43,6 @@
   (getenv
    (if (equal system-type 'windows-nt) "USERNAME" "USER")))
 
-(message "Prelude is powering up... Be patient, Master %s!" current-user)
-
-(when (version< emacs-version "24.4")
-  (error "Prelude requires at least GNU Emacs 24.4, but you're running %s" emacs-version))
-
 ;; Always load newest byte code
 (setq load-prefer-newer t)
 
@@ -132,8 +127,6 @@ by Prelude.")
 (when (file-exists-p prelude-personal-dir)
   (message "Loading personal configuration files in %s..." prelude-personal-dir)
   (mapc 'load (directory-files prelude-personal-dir 't "^[^#\.].*el$")))
-
-(message "Prelude is ready to do thy bidding, Master %s!" current-user)
 
 ;; Patch security vulnerability in Emacs versions older than 25.3
 (when (version< emacs-version "25.3")
