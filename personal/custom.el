@@ -7,7 +7,7 @@
  '(browse-url-generic-program nil)
  '(elfeed-feeds
    (quote
-    ("http://dalwiki.derechoaleer.org/recentchanges/index.atom" "http://feeds.feedburner.com/ElLadoDelMal" "http://planet.emacsen.org/atom.xml" "http://rss.slashdot.org/Slashdot/slashdot" "http://feeds.feedburner.com/ENTERCO")))
+    ("http://dalwiki.derechoaleer.org/recentchanges/index.atom" "http://feeds.feedburner.com/ElLadoDelMal" "http://planet.emacsen.org/atom.xml" "http://rss.slashdot.org/Slashdot/slashdot" "http://feeds.feedburner.com/ENTERCO")) t)
  '(elpy-test-django-runner-command (quote ("./manage.py" "test" "--noinput")))
  '(elpy-test-django-runner-manage-command (quote ("./manage.py" "test" "--noinput")))
  '(elpy-test-runner (quote elpy-test-django-runner))
@@ -23,8 +23,8 @@
  '(smtpmail-smtp-service "587" t)
  '(smtpmail-smtp-user "cloudneozero@gmail.com")
  '(smtpmail-stream-type (quote starttls))
- '(starttls-gnutls-program "/usr/bin/gnutls-cli" t)
- '(starttls-use-gnutls t t))
+ '(starttls-gnutls-program "/usr/bin/gnutls-cli")
+ '(starttls-use-gnutls t))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.

@@ -393,16 +393,1165 @@ Only modes that don't derive from `prog-mode' should be listed here."
 (require 'which-key)
 (which-key-mode +1)
 
-(require 'prelude-core)
-(require 'prelude-mode)
-(require 'prelude-editor)
-(require 'prelude-global-keybindings)
+;; prelude-core
+(require 'thingatpt)
+(require 'dash)
+(require 'ov)
+
+(defun prelude-buffer-mode (buffer-or-name)
+  "Retrieve the `major-mode' of BUFFER-OR-NAME."
+  (with-current-buffer buffer-or-name
+    major-mode))
+
+(defun prelude-search (query-url prompt)
+  "Open the search url constructed with the QUERY-URL.
+PROMPT sets the `read-string prompt."
+  (browse-url
+   (concat query-url
+           (url-hexify-string
+            (if mark-active
+                (buffer-substring (region-beginning) (region-end))
+              (read-string prompt))))))
+
+(defmacro prelude-install-search-engine (search-engine-name search-engine-url search-engine-prompt)
+  "Given some information regarding a search engine, install the interactive command to search through them"
+  `(defun ,(intern (format "prelude-%s" search-engine-name)) ()
+       ,(format "Search %s with a query or region if any." search-engine-name)
+       (interactive)
+       (prelude-search ,search-engine-url ,search-engine-prompt)))
+
+(prelude-install-search-engine "google"     "http://www.google.com/search?q="              "Google: ")
+(prelude-install-search-engine "youtube"    "http://www.youtube.com/results?search_query=" "Search YouTube: ")
+(prelude-install-search-engine "github"     "https://github.com/search?q="                 "Search GitHub: ")
+(prelude-install-search-engine "duckduckgo" "https://duckduckgo.com/?t=lm&q="              "Search DuckDuckGo: ")
+
+(defun prelude-todo-ov-evaporate (_ov _after _beg _end &optional _length)
+  (let ((inhibit-modification-hooks t))
+    (if _after (ov-reset _ov))))
+
+(defun prelude-annotate-todo ()
+  "Put fringe marker on TODO: lines in the current buffer."
+  (interactive)
+  (ov-set (format "[[:space:]]*%s+[[:space:]]*TODO:" comment-start)
+          'before-string
+          (propertize (format "A")
+                      'display '(left-fringe right-triangle))
+          'modification-hooks '(prelude-todo-ov-evaporate)))
+
+(defun prelude-recompile-init ()
+  "Byte-compile all your dotfiles again."
+  (interactive)
+  (byte-recompile-directory prelude-dir 0))
+
+(defvar prelude-tips
+  '("Press <C-c o> to open a file with external program."
+    "Press <C-c p f> to navigate a project's files with ido."
+    "Press <s-r> to open a recently visited file."
+    "Press <C-c p s g> to run grep on a project."
+    "Press <C-c p p> to switch between projects."
+    "Press <C-=> to expand the selected region."
+    "Press <C-c g> to search in Google."
+    "Press <C-c G> to search in GitHub."
+    "Press <C-c y> to search in YouTube."
+    "Press <C-c U> to search in DuckDuckGo."
+    "Press <C-c r> to rename the current buffer and the file it's visiting if any."
+    "Press <C-c t> to open a terminal in Emacs."
+    "Press <C-c k> to kill all the buffers, but the active one."
+    "Press <C-x g> to run magit-status."
+    "Press <C-c D> to delete the current file and buffer."
+    "Press <C-c s> to swap two windows."
+    "Press <S-RET> or <M-o> to open a line beneath the current one."
+    "Press <s-o> to open a line above the current one."
+    "Press <C-c C-z> in a Elisp buffer to launch an interactive Elisp shell."
+    "Press <C-Backspace> to kill a line backwards."
+    "Press <C-S-Backspace> or <s-k> to kill the whole line."
+    "Press <s-j> or <C-^> to join lines."
+    "Press <s-.> or <C-c j> to jump to the start of a word in any visible window."
+    "Press <f11> to toggle fullscreen mode."
+    "Press <f12> to toggle the menu bar."
+    "Explore the Tools->Prelude menu to find out about some of Prelude extensions to Emacs."
+    "Access the official Emacs manual by pressing <C-h r>."
+    "Visit the EmacsWiki at http://emacswiki.org to find out even more about Emacs."))
+
+(defun prelude-tip-of-the-day ()
+  "Display a random entry from `prelude-tips'."
+  (interactive)
+  (when (and prelude-tips (not (window-minibuffer-p)))
+    ;; pick a new random seed
+    (random t)
+    (message
+     (concat "Prelude tip: " (nth (random (length prelude-tips)) prelude-tips)))))
+
+(defun prelude-eval-after-init (form)
+  "Add `(lambda () FORM)' to `after-init-hook'.
+
+    If Emacs has already finished initialization, also eval FORM immediately."
+  (let ((func (list 'lambda nil form)))
+    (add-hook 'after-init-hook func)
+    (when after-init-time
+      (eval form))))
+
+(require 'epl)
+
+(defun prelude-update ()
+  "Update Prelude to its latest version."
+  (interactive)
+  (when (y-or-n-p "Do you want to update Prelude? ")
+    (message "Updating installed packages...")
+    (epl-upgrade)
+    (message "Updating Prelude...")
+    (cd prelude-dir)
+    (shell-command "git pull")
+    (prelude-recompile-init)
+    (message "Update finished. Restart Emacs to complete the process.")))
+
+(defun prelude-update-packages (&optional arg)
+  "Update Prelude's packages.
+This includes package installed via `prelude-require-package'.
+
+With a prefix ARG updates all installed packages."
+  (interactive "P")
+  (when (y-or-n-p "Do you want to update Prelude's packages? ")
+    (if arg
+        (epl-upgrade)
+      (epl-upgrade (-filter (lambda (p) (memq (epl-package-name p) prelude-packages))
+                            (epl-installed-packages))))
+    (message "Update finished. Restart Emacs to complete the process.")))
+
+;;; Emacs in OSX already has fullscreen support
+;;; Emacs has a similar built-in command in 24.4
+(defun prelude-fullscreen ()
+  "Make Emacs window fullscreen.
+
+This follows freedesktop standards, should work in X servers."
+  (interactive)
+  (if (eq window-system 'x)
+      (x-send-client-message nil 0 nil "_NET_WM_STATE" 32
+                             '(2 "_NET_WM_STATE_FULLSCREEN" 0))
+    (error "Only X server is supported")))
+
+(defun prelude-wrap-with (s)
+  "Create a wrapper function for smartparens using S."
+  `(lambda (&optional arg)
+     (interactive "P")
+     (sp-wrap-with-pair ,s)))
+
+;; prelude-mode
+(require 'easymenu)
+(require 'imenu-anywhere)
+(require 'crux)
+
+(defvar prelude-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c o") 'crux-open-with)
+    (define-key map (kbd "C-c g") 'prelude-google)
+    (define-key map (kbd "C-c G") 'prelude-github)
+    (define-key map (kbd "C-c y") 'prelude-youtube)
+    (define-key map (kbd "C-c U") 'prelude-duckduckgo)
+    ;; mimic popular IDEs binding, note that it doesn't work in a terminal session
+    (define-key map (kbd "C-a") 'crux-move-beginning-of-line)
+    (define-key map [(shift return)] 'crux-smart-open-line)
+    (define-key map (kbd "M-o") 'crux-smart-open-line)
+    (define-key map [(control shift return)] 'crux-smart-open-line-above)
+    (define-key map [(control shift up)]  'move-text-up)
+    (define-key map [(control shift down)]  'move-text-down)
+    (define-key map [(meta shift up)]  'move-text-up)
+    (define-key map [(meta shift down)]  'move-text-down)
+    (define-key map (kbd "C-c n") 'crux-cleanup-buffer-or-region)
+    (define-key map (kbd "C-c f")  'crux-recentf-ido-find-file)
+    (define-key map (kbd "C-M-z") 'crux-indent-defun)
+    (define-key map (kbd "C-c u") 'crux-view-url)
+    (define-key map (kbd "C-c e") 'crux-eval-and-replace)
+    (define-key map (kbd "C-c s") 'crux-swap-windows)
+    (define-key map (kbd "C-c D") 'crux-delete-file-and-buffer)
+    (define-key map (kbd "C-c d") 'crux-duplicate-current-line-or-region)
+    (define-key map (kbd "C-c M-d") 'crux-duplicate-and-comment-current-line-or-region)
+    (define-key map (kbd "C-c r") 'crux-rename-buffer-and-file)
+    (define-key map (kbd "C-c t") 'crux-visit-term-buffer)
+    (define-key map (kbd "C-c k") 'crux-kill-other-buffers)
+    (define-key map (kbd "C-c TAB") 'crux-indent-rigidly-and-copy-to-clipboard)
+    (define-key map (kbd "C-c I") 'crux-find-user-init-file)
+    (define-key map (kbd "C-c S") 'crux-find-shell-init-file)
+    (define-key map (kbd "C-c i") 'imenu-anywhere)
+    ;; extra prefix for projectile
+    (define-key map (kbd "s-p") 'projectile-command-map)
+    ;; make some use of the Super key
+    (define-key map (kbd "s-g") 'god-local-mode)
+    (define-key map (kbd "s-r") 'crux-recentf-ido-find-file)
+    (define-key map (kbd "s-j") 'crux-top-join-line)
+    (define-key map (kbd "s-k") 'crux-kill-whole-line)
+    (define-key map (kbd "s-m m") 'magit-status)
+    (define-key map (kbd "s-m l") 'magit-log)
+    (define-key map (kbd "s-m f") 'magit-log-buffer-file)
+    (define-key map (kbd "s-m b") 'magit-blame)
+    (define-key map (kbd "s-o") 'crux-smart-open-line-above)
+
+    map)
+  "Keymap for Prelude mode.")
+
+(defun prelude-mode-add-menu ()
+  "Add a menu entry for `prelude-mode' under Tools."
+  (easy-menu-add-item nil '("Tools")
+                      '("Prelude"
+                        ("Files"
+                         ["Open with..." crux-open-with]
+                         ["Delete file and buffer" crux-delete-file-and-buffer]
+                         ["Rename buffer and file" crux-rename-buffer-and-file])
+
+                        ("Buffers"
+                         ["Clean up buffer or region" crux-cleanup-buffer-or-region]
+                         ["Kill other buffers" crux-kill-other-buffers])
+
+                        ("Editing"
+                         ["Insert empty line" prelude-insert-empty-line]
+                         ["Move line up" prelude-move-line-up]
+                         ["Move line down" prelude-move-line-down]
+                         ["Duplicate line or region" prelude-duplicate-current-line-or-region]
+                         ["Indent rigidly and copy to clipboard" crux-indent-rigidly-and-copy-to-clipboard]
+                         ["Insert date" crux-insert-date]
+                         ["Eval and replace" crux-eval-and-replace]
+                         )
+
+                        ("Windows"
+                         ["Swap windows" crux-swap-windows])
+
+                        ("General"
+                         ["Visit term buffer" crux-visit-term-buffer]
+                         ["Search in Google" prelude-google]
+                         ["View URL" crux-view-url]))
+                      "Search Files (Grep)...")
+
+  (easy-menu-add-item nil '("Tools") '("--") "Search Files (Grep)..."))
+
+(defun prelude-mode-remove-menu ()
+  "Remove `prelude-mode' menu entry."
+  (easy-menu-remove-item nil '("Tools") "Prelude")
+  (easy-menu-remove-item nil '("Tools") "--"))
+
+;; define minor mode
+(define-minor-mode prelude-mode
+  "Minor mode to consolidate Emacs Prelude extensions.
+
+\\{prelude-mode-map}"
+  :lighter " Pre"
+  :keymap prelude-mode-map
+  (if prelude-mode
+      ;; on start
+      (prelude-mode-add-menu)
+    ;; on stop
+    (prelude-mode-remove-menu)))
+
+(define-globalized-minor-mode prelude-global-mode prelude-mode prelude-on)
+
+(defun prelude-on ()
+  "Turn on `prelude-mode'."
+  (prelude-mode +1))
+
+(defun prelude-off ()
+  "Turn off `prelude-mode'."
+  (prelude-mode -1))
+
+;; prelude-editor
+(setq-default indent-tabs-mode nil)   ;; don't use tabs to indent
+(setq-default tab-width 8)            ;; but maintain correct appearance
+
+;; Newline at end of file
+(setq require-final-newline t)
+
+;; delete the selection with a keypress
+(delete-selection-mode t)
+
+;; store all backup and autosave files in the tmp dir
+(setq backup-directory-alist
+      `((".*" . ,temporary-file-directory)))
+(setq auto-save-file-name-transforms
+      `((".*" ,temporary-file-directory t)))
+
+;; autosave the undo-tree history
+(setq undo-tree-history-directory-alist
+      `((".*" . ,temporary-file-directory)))
+(setq undo-tree-auto-save-history t)
+
+;; revert buffers automatically when underlying files are changed externally
+(global-auto-revert-mode t)
+
+;; hippie expand is dabbrev expand on steroids
+(setq hippie-expand-try-functions-list '(try-expand-dabbrev
+                                         try-expand-dabbrev-all-buffers
+                                         try-expand-dabbrev-from-kill
+                                         try-complete-file-name-partially
+                                         try-complete-file-name
+                                         try-expand-all-abbrevs
+                                         try-expand-list
+                                         try-expand-line
+                                         try-complete-lisp-symbol-partially
+                                         try-complete-lisp-symbol))
+
+;; smart tab behavior - indent or complete
+(setq tab-always-indent 'complete)
+
+;; smart pairing for all
+(require 'smartparens-config)
+(setq sp-base-key-bindings 'paredit)
+(setq sp-autoskip-closing-pair 'always)
+(setq sp-hybrid-kill-entire-symbol nil)
+(sp-use-paredit-bindings)
+
+(show-smartparens-global-mode +1)
+
+(define-key prog-mode-map (kbd "M-(") (prelude-wrap-with "("))
+;; FIXME: pick terminal friendly binding
+;; (define-key prog-mode-map (kbd "M-[") (prelude-wrap-with "["))
+(define-key prog-mode-map (kbd "M-\"") (prelude-wrap-with "\""))
+
+;; disable annoying blink-matching-paren
+(setq blink-matching-paren nil)
+
+;; diminish keeps the modeline tidy
+(require 'diminish)
+
+;; meaningful names for buffers with the same name
+(require 'uniquify)
+(setq uniquify-buffer-name-style 'forward)
+(setq uniquify-separator "/")
+(setq uniquify-after-kill-buffer-p t)    ; rename after killing uniquified
+(setq uniquify-ignore-buffers-re "^\\*") ; don't muck with special buffers
+
+;; saveplace remembers your location in a file when saving files
+(setq save-place-file (expand-file-name "saveplace" prelude-savefile-dir))
+;; activate it for all buffers
+(if (< emacs-major-version 25)
+    (progn (require 'saveplace)
+           (setq-default save-place t))
+  (save-place-mode 1))
+
+;; savehist keeps track of some history
+(require 'savehist)
+(setq savehist-additional-variables
+      ;; search entries
+      '(search-ring regexp-search-ring)
+      ;; save every minute
+      savehist-autosave-interval 60
+      ;; keep the home clean
+      savehist-file (expand-file-name "savehist" prelude-savefile-dir))
+(savehist-mode +1)
+
+;; save recent files
+(require 'recentf)
+(setq recentf-save-file (expand-file-name "recentf" prelude-savefile-dir)
+      recentf-max-saved-items 500
+      recentf-max-menu-items 15
+      ;; disable recentf-cleanup on Emacs start, because it can cause
+      ;; problems with remote files
+      recentf-auto-cleanup 'never)
+
+(defun prelude-recentf-exclude-p (file)
+  "A predicate to decide whether to exclude FILE from recentf."
+  (let ((file-dir (file-truename (file-name-directory file))))
+    (-any-p (lambda (dir)
+              (string-prefix-p dir file-dir))
+            (mapcar 'file-truename (list prelude-savefile-dir package-user-dir)))))
+
+(add-to-list 'recentf-exclude 'prelude-recentf-exclude-p)
+
+(recentf-mode +1)
+
+;; use shift + arrow keys to switch between visible buffers
+(require 'windmove)
+(windmove-default-keybindings)
+
+;; automatically save buffers associated with files on buffer switch
+;; and on windows switch
+(defun prelude-auto-save-command ()
+  "Save the current buffer if `prelude-auto-save' is not nil."
+  (when (and prelude-auto-save
+             buffer-file-name
+             (buffer-modified-p (current-buffer))
+             (file-writable-p buffer-file-name))
+    (save-buffer)))
+
+(defmacro advise-commands (advice-name commands class &rest body)
+  "Apply advice named ADVICE-NAME to multiple COMMANDS.
+
+The body of the advice is in BODY."
+  `(progn
+     ,@(mapcar (lambda (command)
+                 `(defadvice ,command (,class ,(intern (concat (symbol-name command) "-" advice-name)) activate)
+                    ,@body))
+               commands)))
+
+;; advise all window switching functions
+(advise-commands "auto-save"
+                 (switch-to-buffer other-window windmove-up windmove-down windmove-left windmove-right)
+                 before
+                 (prelude-auto-save-command))
+
+(add-hook 'mouse-leave-buffer-hook 'prelude-auto-save-command)
+
+(when (version<= "24.4" emacs-version)
+  (add-hook 'focus-out-hook 'prelude-auto-save-command))
+
+(defadvice set-buffer-major-mode (after set-major-mode activate compile)
+  "Set buffer major mode according to `auto-mode-alist'."
+  (let* ((name (buffer-name buffer))
+         (mode (assoc-default name auto-mode-alist 'string-match)))
+    (when (and mode (consp mode))
+      (setq mode (car mode)))
+    (with-current-buffer buffer (if mode (funcall mode)))))
+
+;; highlight the current line
+(global-hl-line-mode +1)
+
+(require 'volatile-highlights)
+(volatile-highlights-mode t)
+(diminish 'volatile-highlights-mode)
+
+;; note - this should be after volatile-highlights is required
+;; add the ability to cut the current line, without marking it
+(require 'rect)
+(crux-with-region-or-line kill-region)
+
+;; tramp, for sudo access
+(require 'tramp)
+;; keep in mind known issues with zsh - see emacs wiki
+(setq tramp-default-method "ssh")
+
+(set-default 'imenu-auto-rescan t)
+
+;; flyspell-mode does spell-checking on the fly as you type
+(require 'flyspell)
+(setq ispell-program-name "aspell" ; use aspell instead of ispell
+      ispell-extra-args '("--sug-mode=ultra"))
+
+(defun prelude-enable-flyspell ()
+  "Enable command `flyspell-mode' if `prelude-flyspell' is not nil."
+  (when (and prelude-flyspell (executable-find ispell-program-name))
+    (flyspell-mode +1)))
+
+(defun prelude-cleanup-maybe ()
+  "Invoke `whitespace-cleanup' if `prelude-clean-whitespace-on-save' is not nil."
+  (when prelude-clean-whitespace-on-save
+    (whitespace-cleanup)))
+
+(defun prelude-enable-whitespace ()
+  "Enable `whitespace-mode' if `prelude-whitespace' is not nil."
+  (when prelude-whitespace
+    ;; keep the whitespace decent all the time (in this buffer)
+    (add-hook 'before-save-hook 'prelude-cleanup-maybe nil t)
+    (whitespace-mode +1)))
+
+(add-hook 'text-mode-hook 'prelude-enable-flyspell)
+(add-hook 'text-mode-hook 'prelude-enable-whitespace)
+
+;; enable narrowing commands
+(put 'narrow-to-region 'disabled nil)
+(put 'narrow-to-page 'disabled nil)
+(put 'narrow-to-defun 'disabled nil)
+
+;; enabled change region case commands
+(put 'upcase-region 'disabled nil)
+(put 'downcase-region 'disabled nil)
+
+;; enable erase-buffer command
+(put 'erase-buffer 'disabled nil)
+
+(require 'expand-region)
+
+;; bookmarks
+(require 'bookmark)
+(setq bookmark-default-file (expand-file-name "bookmarks" prelude-savefile-dir)
+      bookmark-save-flag 1)
+
+;; projectile is a project management mode
+(require 'projectile)
+(setq projectile-cache-file (expand-file-name  "projectile.cache" prelude-savefile-dir))
+(projectile-global-mode t)
+
+;; avy allows us to effectively navigate to visible things
+(require 'avy)
+(setq avy-background t)
+(setq avy-style 'at-full)
+
+;; anzu-mode enhances isearch & query-replace by showing total matches and current match position
+(require 'anzu)
+(diminish 'anzu-mode)
+(global-anzu-mode)
+
+(global-set-key (kbd "M-%") 'anzu-query-replace)
+(global-set-key (kbd "C-M-%") 'anzu-query-replace-regexp)
+
+;; dired - reuse current buffer by pressing 'a'
+(put 'dired-find-alternate-file 'disabled nil)
+
+;; always delete and copy recursively
+(setq dired-recursive-deletes 'always)
+(setq dired-recursive-copies 'always)
+
+;; if there is a dired buffer displayed in the next window, use its
+;; current subdir, instead of the current subdir of this dired buffer
+(setq dired-dwim-target t)
+
+;; enable some really cool extensions like C-x C-j(dired-jump)
+(require 'dired-x)
+
+;; ediff - don't start another frame
+(require 'ediff)
+(setq ediff-window-setup-function 'ediff-setup-windows-plain)
+
+;; clean up obsolete buffers automatically
+(require 'midnight)
+
+;; smarter kill-ring navigation
+(require 'browse-kill-ring)
+(browse-kill-ring-default-keybindings)
+(global-set-key (kbd "s-y") 'browse-kill-ring)
+
+(defadvice exchange-point-and-mark (before deactivate-mark activate compile)
+  "When called with no active region, do not activate mark."
+  (interactive
+   (list (not (region-active-p)))))
+
+(require 'tabify)
+(defmacro with-region-or-buffer (func)
+  "When called with no active region, call FUNC on current buffer."
+  `(defadvice ,func (before with-region-or-buffer activate compile)
+     (interactive
+      (if mark-active
+          (list (region-beginning) (region-end))
+        (list (point-min) (point-max))))))
+
+(with-region-or-buffer indent-region)
+(with-region-or-buffer untabify)
+
+;; automatically indenting yanked text if in programming-modes
+(defun yank-advised-indent-function (beg end)
+  "Do indentation, as long as the region isn't too large."
+  (if (<= (- end beg) prelude-yank-indent-threshold)
+      (indent-region beg end nil)))
+
+(advise-commands "indent" (yank yank-pop) after
+  "If current mode is one of `prelude-yank-indent-modes',
+indent yanked text (with prefix arg don't indent)."
+  (if (and (not (ad-get-arg 0))
+           (not (member major-mode prelude-indent-sensitive-modes))
+           (or (derived-mode-p 'prog-mode)
+               (member major-mode prelude-yank-indent-modes)))
+      (let ((transient-mark-mode nil))
+        (yank-advised-indent-function (region-beginning) (region-end)))))
+
+;; abbrev config
+(add-hook 'text-mode-hook 'abbrev-mode)
+
+;; make a shell script executable automatically on save
+(add-hook 'after-save-hook
+          'executable-make-buffer-file-executable-if-script-p)
+
+;; .zsh file is shell script too
+(add-to-list 'auto-mode-alist '("\\.zsh\\'" . shell-script-mode))
+
+;; whitespace-mode config
+(require 'whitespace)
+(setq whitespace-line-column 80) ;; limit line length
+(setq whitespace-style '(face tabs empty trailing lines-tail))
+
+;; saner regex syntax
+(require 're-builder)
+(setq reb-re-syntax 'string)
+
+(require 'eshell)
+(setq eshell-directory-name (expand-file-name "eshell" prelude-savefile-dir))
+
+(setq semanticdb-default-save-directory
+      (expand-file-name "semanticdb" prelude-savefile-dir))
+
+;; Compilation from Emacs
+(defun prelude-colorize-compilation-buffer ()
+  "Colorize a compilation mode buffer."
+  (interactive)
+  ;; we don't want to mess with child modes such as grep-mode, ack, ag, etc
+  (when (eq major-mode 'compilation-mode)
+    (let ((inhibit-read-only t))
+      (ansi-color-apply-on-region (point-min) (point-max)))))
+
+(require 'compile)
+(setq compilation-ask-about-save nil  ; Just save before compiling
+      compilation-always-kill t       ; Just kill old compile processes before
+                                        ; starting the new one
+      compilation-scroll-output 'first-error ; Automatically scroll to first
+                                        ; error
+      )
+
+;; Colorize output of Compilation Mode, see
+;; http://stackoverflow.com/a/3072831/355252
+(require 'ansi-color)
+(add-hook 'compilation-filter-hook #'prelude-colorize-compilation-buffer)
+
+;; enable Prelude's keybindings
+(prelude-global-mode t)
+
+;; sensible undo
+(global-undo-tree-mode)
+(diminish 'undo-tree-mode)
+
+;; enable winner-mode to manage window configurations
+(winner-mode +1)
+
+;; diff-hl
+(global-diff-hl-mode +1)
+(add-hook 'dired-mode-hook 'diff-hl-dired-mode)
+(add-hook 'magit-post-refresh-hook 'diff-hl-magit-post-refresh)
+
+;; easy-kill
+(global-set-key [remap kill-ring-save] 'easy-kill)
+(global-set-key [remap mark-sexp] 'easy-mark)
+
+;; operate-on-number
+(require 'operate-on-number)
+(require 'smartrep)
+
+(smartrep-define-key global-map "C-c ."
+  '(("+" . apply-operation-to-number-at-point)
+    ("-" . apply-operation-to-number-at-point)
+    ("*" . apply-operation-to-number-at-point)
+    ("/" . apply-operation-to-number-at-point)
+    ("\\" . apply-operation-to-number-at-point)
+    ("^" . apply-operation-to-number-at-point)
+    ("<" . apply-operation-to-number-at-point)
+    (">" . apply-operation-to-number-at-point)
+    ("#" . apply-operation-to-number-at-point)
+    ("%" . apply-operation-to-number-at-point)
+    ("'" . operate-on-number-at-point)))
+
+(defadvice server-visit-files (before parse-numbers-in-lines (files proc &optional nowait) activate)
+  "Open file with emacsclient with cursors positioned on requested line.
+Most of console-based utilities prints filename in format
+'filename:linenumber'.  So you may wish to open filename in that format.
+Just call:
+
+  emacsclient filename:linenumber
+
+and file 'filename' will be opened and cursor set on line 'linenumber'"
+  (ad-set-arg 0
+              (mapcar (lambda (fn)
+                        (let ((name (car fn)))
+                          (if (string-match "^\\(.*?\\):\\([0-9]+\\)\\(?::\\([0-9]+\\)\\)?$" name)
+                              (cons
+                               (match-string 1 name)
+                               (cons (string-to-number (match-string 2 name))
+                                     (string-to-number (or (match-string 3 name) ""))))
+                            fn))) files)))
+
+;; use settings from .editorconfig file when present
+(require 'editorconfig)
+(editorconfig-mode 1)
+
+;; prelude-global-keybinding
+;; Align your code in a pretty way.
+(global-set-key (kbd "C-x \\") 'align-regexp)
+
+;; Font size
+(global-set-key (kbd "C-+") 'text-scale-increase)
+(global-set-key (kbd "C--") 'text-scale-decrease)
+
+;; Window switching. (C-x o goes to the next window)
+(global-set-key (kbd "C-x O") (lambda ()
+                                (interactive)
+                                (other-window -1))) ;; back one
+
+;; Indentation help
+(global-set-key (kbd "C-^") 'crux-top-join-line)
+;; Start proced in a similar manner to dired
+(unless (eq system-type 'darwin)
+    (global-set-key (kbd "C-x p") 'proced))
+
+;; Start eshell or switch to it if it's active.
+(global-set-key (kbd "C-x m") 'eshell)
+
+;; Start a new eshell even if one is active.
+(global-set-key (kbd "C-x M") (lambda () (interactive) (eshell t)))
+
+;; Start a regular shell if you prefer that.
+(global-set-key (kbd "C-x M-m") 'shell)
+
+;; If you want to be able to M-x without meta
+(global-set-key (kbd "C-x C-m") 'smex)
+
+;; A complementary binding to the apropos-command (C-h a)
+(define-key 'help-command "A" 'apropos)
+
+;; A quick major mode help with discover-my-major
+(define-key 'help-command (kbd "C-m") 'discover-my-major)
+
+(define-key 'help-command (kbd "C-f") 'find-function)
+(define-key 'help-command (kbd "C-k") 'find-function-on-key)
+(define-key 'help-command (kbd "C-v") 'find-variable)
+(define-key 'help-command (kbd "C-l") 'find-library)
+
+(define-key 'help-command (kbd "C-i") 'info-display-manual)
+
+;; replace zap-to-char functionality with the more powerful zop-to-char
+(global-set-key (kbd "M-z") 'zop-up-to-char)
+(global-set-key (kbd "M-Z") 'zop-to-char)
+
+;; kill lines backward
+(global-set-key (kbd "C-<backspace>") (lambda ()
+                                        (interactive)
+                                        (kill-line 0)
+                                        (indent-according-to-mode)))
+
+(global-set-key [remap kill-whole-line] 'crux-kill-whole-line)
+
+;; Activate occur easily inside isearch
+(define-key isearch-mode-map (kbd "C-o") 'isearch-occur)
+
+;; use hippie-expand instead of dabbrev
+(global-set-key (kbd "M-/") 'hippie-expand)
+
+;; replace buffer-menu with ibuffer
+(global-set-key (kbd "C-x C-b") 'ibuffer)
+
+(unless (fboundp 'toggle-frame-fullscreen)
+  (global-set-key (kbd "<f11>") 'prelude-fullscreen))
+
+;; toggle menu-bar visibility
+(global-set-key (kbd "<f12>") 'menu-bar-mode)
+
+(global-set-key (kbd "C-x g") 'magit-status)
+(global-set-key (kbd "C-x M-g") 'magit-dispatch-popup)
+
+(global-set-key (kbd "C-=") 'er/expand-region)
+
+(global-set-key (kbd "C-c j") 'avy-goto-word-or-subword-1)
+(global-set-key (kbd "s-.") 'avy-goto-word-or-subword-1)
+(global-set-key (kbd "s-w") 'ace-window)
 
 ;; the modules
-(if (file-exists-p prelude-modules-file)
-    (load prelude-modules-file)
-  (message "Missing modules file %s" prelude-modules-file)
-  (message "You can get started by copying the bundled example file from sample/prelude-modules.el"))
+(require 'erc)
+(require 'erc-log)
+(require 'erc-notify)
+(require 'erc-spelling)
+(require 'erc-autoaway)
+
+;; Interpret mIRC-style color commands in IRC chats
+(setq erc-interpret-mirc-color t)
+
+;; The following are commented out by default, but users of other
+;; non-Emacs IRC clients might find them useful.
+;; Kill buffers for channels after /part
+(setq erc-kill-buffer-on-part t)
+;; Kill buffers for private queries after quitting the server
+(setq erc-kill-queries-on-quit t)
+;; Kill buffers for server messages after quitting the server
+(setq erc-kill-server-buffer-on-quit t)
+
+;; open query buffers in the current window
+(setq erc-query-display 'buffer)
+
+;; exclude boring stuff from tracking
+(erc-track-mode t)
+(setq erc-track-exclude-types '("JOIN" "NICK" "PART" "QUIT" "MODE"
+                                "324" "329" "332" "333" "353" "477"))
+
+;; logging
+(setq erc-log-channels-directory "~/.erc/logs/")
+
+(if (not (file-exists-p erc-log-channels-directory))
+    (mkdir erc-log-channels-directory t))
+
+(setq erc-save-buffer-on-part t)
+;; FIXME - this advice is wrong and is causing problems on Emacs exit
+;; (defadvice save-buffers-kill-emacs (before save-logs (arg) activate)
+;;   (save-some-buffers t (lambda () (when (eq major-mode 'erc-mode) t))))
+
+;; truncate long irc buffers
+(erc-truncate-mode +1)
+
+;; enable spell checking
+(when prelude-flyspell
+  (erc-spelling-mode 1))
+;; set different dictionaries by different servers/channels
+;;(setq erc-spelling-dictionaries '(("#emacs" "american")))
+
+(defvar erc-notify-nick-alist nil
+  "Alist of nicks and the last time they tried to trigger a
+notification")
+
+(defvar erc-notify-timeout 10
+  "Number of seconds that must elapse between notifications from
+the same person.")
+
+(defun erc-notify-allowed-p (nick &optional delay)
+  "Return non-nil if a notification should be made for NICK.
+If DELAY is specified, it will be the minimum time in seconds
+that can occur between two notifications.  The default is
+`erc-notify-timeout'."
+  (unless delay (setq delay erc-notify-timeout))
+  (let ((cur-time (time-to-seconds (current-time)))
+        (cur-assoc (assoc nick erc-notify-nick-alist))
+        (last-time nil))
+    (if cur-assoc
+        (progn
+          (setq last-time (cdr cur-assoc))
+          (setcdr cur-assoc cur-time)
+          (> (abs (- cur-time last-time)) delay))
+      (push (cons nick cur-time) erc-notify-nick-alist)
+      t)))
+
+;; autoaway setup
+(setq erc-auto-discard-away t)
+(setq erc-autoaway-idle-seconds 600)
+(setq erc-autoaway-use-emacs-idle t)
+
+;; utf-8 always and forever
+(setq erc-server-coding-system '(utf-8 . utf-8))
+
+
+(defvar my-fav-irc '( "irc.freenode.net" )
+  "Stores the list of IRC servers that you want to connect to with start-irc.")
+
+(defvar bye-irc-message "Asta la vista"
+  "Message string to be sent while quitting IRC.")
+
+(defcustom prelude-new-irc-persp nil
+  "True (t) means start IRC in new perspective."
+  :type 'boolean
+  :require 'prelude-erc
+  :group 'prelude)
+
+(defun connect-to-erc (server)
+  "Connects securely to IRC SERVER over TLS at port 6697."
+  (erc-tls :server server
+           :port 6697
+           :nick erc-nick ))
+
+(defun start-irc ()
+  "Connect to IRC?"
+  (interactive)
+  (when (y-or-n-p "Do you want to start IRC? ")
+    (when prelude-new-irc-persp
+      (persp-switch "IRC"))
+    (mapcar 'connect-to-erc my-fav-irc)))
+
+(defun filter-server-buffers ()
+  (delq nil
+        (mapcar
+         (lambda (x) (and (erc-server-buffer-p x) x))
+         (buffer-list))))
+
+(defun stop-irc ()
+  "Disconnects from all irc servers."
+  (interactive)
+  (when prelude-new-irc-persp
+    (persp-switch "IRC"))
+  (dolist (buffer (filter-server-buffers))
+    (message "Server buffer: %s" (buffer-name buffer))
+    (with-current-buffer buffer
+      (erc-quit-server bye-irc-message)))
+  (when prelude-new-irc-persp
+    (persp-kill "IRC")))
+
+(prelude-require-packages '(company))
+
+(require 'company)
+
+(setq company-idle-delay 0.5)
+(setq company-tooltip-limit 10)
+(setq company-minimum-prefix-length 2)
+;; invert the navigation direction if the the completion popup-isearch-match
+;; is displayed on top (happens near the bottom of windows)
+(setq company-tooltip-flip-when-above t)
+
+(global-company-mode 1)
+
+;; key-chord
+(prelude-require-package 'key-chord)
+
+(require 'key-chord)
+
+(key-chord-define-global "jj" 'avy-goto-word-1)
+(key-chord-define-global "jl" 'avy-goto-line)
+(key-chord-define-global "jk" 'avy-goto-char)
+(key-chord-define-global "JJ" 'crux-switch-to-previous-buffer)
+(key-chord-define-global "uu" 'undo-tree-visualize)
+(key-chord-define-global "xx" 'execute-extended-command)
+(key-chord-define-global "yy" 'browse-kill-ring)
+
+(defvar key-chord-tips '("Press <jj> quickly to jump to the beginning of a visible word."
+                         "Press <jl> quickly to jump to a visible line."
+                         "Press <jk> quickly to jump to a visible character."
+                         "Press <JJ> quickly to switch to previous buffer."
+                         "Press <uu> quickly to visualize the undo tree."
+                         "Press <xx> quickly to execute extended command."
+                         "Press <yy> quickly to browse the kill ring."))
+
+(setq prelude-tips (append prelude-tips key-chord-tips))
+
+(key-chord-mode +1)
+
+;;; Programming languages support
+;;; prelude-c
+(require 'prelude-programming)
+
+(defun prelude-c-mode-common-defaults ()
+  (setq c-default-style "k&r"
+        c-basic-offset 4)
+  (c-set-offset 'substatement-open 0))
+
+(setq prelude-c-mode-common-hook 'prelude-c-mode-common-defaults)
+
+;; this will affect all modes derived from cc-mode, like
+;; java-mode, php-mode, etc
+(add-hook 'c-mode-common-hook (lambda ()
+                                (run-hooks 'prelude-c-mode-common-hook)))
+
+(defun prelude-makefile-mode-defaults ()
+  (whitespace-toggle-options '(tabs))
+  (setq indent-tabs-mode t ))
+
+(setq prelude-makefile-mode-hook 'prelude-makefile-mode-defaults)
+
+(add-hook 'makefile-mode-hook (lambda ()
+                                (run-hooks 'prelude-makefile-mode-hook)))
+
+
+;; lisp
+
+(prelude-require-packages '(rainbow-delimiters))
+
+;; Lisp configuration
+(define-key read-expression-map (kbd "TAB") 'completion-at-point)
+
+;; wrap keybindings
+(define-key lisp-mode-shared-map (kbd "M-(") (prelude-wrap-with "("))
+;; FIXME: Pick terminal-friendly binding.
+;;(define-key lisp-mode-shared-map (kbd "M-[") (prelude-wrap-with "["))
+(define-key lisp-mode-shared-map (kbd "M-\"") (prelude-wrap-with "\""))
+
+;; a great lisp coding hook
+(defun prelude-lisp-coding-defaults ()
+  (smartparens-strict-mode +1)
+  (rainbow-delimiters-mode +1))
+
+(setq prelude-lisp-coding-hook 'prelude-lisp-coding-defaults)
+
+;; interactive modes don't need whitespace checks
+(defun prelude-interactive-lisp-coding-defaults ()
+  (smartparens-strict-mode +1)
+  (rainbow-delimiters-mode +1)
+  (whitespace-mode -1))
+
+(setq prelude-interactive-lisp-coding-hook 'prelude-interactive-lisp-coding-defaults)
+
+
+;; clojure
+(prelude-require-packages '(clojure-mode cider))
+
+(eval-after-load 'clojure-mode
+  '(progn
+     (defun prelude-clojure-mode-defaults ()
+       (subword-mode +1)
+       (run-hooks 'prelude-lisp-coding-hook))
+
+     (setq prelude-clojure-mode-hook 'prelude-clojure-mode-defaults)
+
+     (add-hook 'clojure-mode-hook (lambda ()
+                                    (run-hooks 'prelude-clojure-mode-hook)))))
+
+(eval-after-load 'cider
+  '(progn
+     (setq nrepl-log-messages t)
+
+     (add-hook 'cider-mode-hook 'eldoc-mode)
+
+     (defun prelude-cider-repl-mode-defaults ()
+       (subword-mode +1)
+       (run-hooks 'prelude-interactive-lisp-coding-hook))
+
+     (setq prelude-cider-repl-mode-hook 'prelude-cider-repl-mode-defaults)
+
+     (add-hook 'cider-repl-mode-hook (lambda ()
+                                       (run-hooks 'prelude-cider-repl-mode-hook)))))
+
+;; css
+(eval-after-load 'css-mode
+  '(progn
+     (prelude-require-packages '(rainbow-mode))
+
+     (setq css-indent-offset 2)
+
+     (defun prelude-css-mode-defaults ()
+       (rainbow-mode +1)
+       (run-hooks 'prelude-prog-mode-hook))
+
+     (setq prelude-css-mode-hook 'prelude-css-mode-defaults)
+
+     (add-hook 'css-mode-hook (lambda ()
+                                (run-hooks 'prelude-css-mode-hook)))))
+
+;; emacs lisp
+(require 'crux)
+
+(prelude-require-packages '(elisp-slime-nav rainbow-mode))
+
+(defun prelude-recompile-elc-on-save ()
+  "Recompile your elc when saving an elisp file."
+  (add-hook 'after-save-hook
+            (lambda ()
+              (when (and
+                     (string-prefix-p prelude-dir (file-truename buffer-file-name))
+                     (file-exists-p (byte-compile-dest-file buffer-file-name)))
+                (emacs-lisp-byte-compile)))
+            nil
+            t))
+
+(defun prelude-visit-ielm ()
+  "Switch to default `ielm' buffer.
+Start `ielm' if it's not already running."
+  (interactive)
+  (crux-start-or-switch-to 'ielm "*ielm*"))
+
+(define-key emacs-lisp-mode-map (kbd "C-c C-z") 'prelude-visit-ielm)
+(define-key emacs-lisp-mode-map (kbd "C-c C-c") 'eval-defun)
+(define-key emacs-lisp-mode-map (kbd "C-c C-b") 'eval-buffer)
+
+(defun prelude-conditional-emacs-lisp-checker ()
+  "Don't check doc style in Emacs Lisp test files."
+  (let ((file-name (buffer-file-name)))
+    (when (and file-name (string-match-p ".*-tests?\\.el\\'" file-name))
+      (setq-local flycheck-checkers '(emacs-lisp)))))
+
+(defun prelude-emacs-lisp-mode-defaults ()
+  "Sensible defaults for `emacs-lisp-mode'."
+  (run-hooks 'prelude-lisp-coding-hook)
+  (eldoc-mode +1)
+  (prelude-recompile-elc-on-save)
+  (rainbow-mode +1)
+  (setq mode-name "EL")
+  (prelude-conditional-emacs-lisp-checker))
+
+(setq prelude-emacs-lisp-mode-hook 'prelude-emacs-lisp-mode-defaults)
+
+(add-hook 'emacs-lisp-mode-hook (lambda ()
+                                  (run-hooks 'prelude-emacs-lisp-mode-hook)))
+
+(add-to-list 'auto-mode-alist '("Cask\\'" . emacs-lisp-mode))
+
+;; ielm is an interactive Emacs Lisp shell
+(defun prelude-ielm-mode-defaults ()
+  "Sensible defaults for `ielm'."
+  (run-hooks 'prelude-interactive-lisp-coding-hook)
+  (eldoc-mode +1))
+
+(setq prelude-ielm-mode-hook 'prelude-ielm-mode-defaults)
+
+(add-hook 'ielm-mode-hook (lambda ()
+                            (run-hooks 'prelude-ielm-mode-hook)))
+
+(eval-after-load "elisp-slime-nav"
+  '(diminish 'elisp-slime-nav-mode))
+(eval-after-load "rainbow-mode"
+  '(diminish 'rainbow-mode))
+(eval-after-load "eldoc"
+  '(diminish 'eldoc-mode))
+
+(eval-after-load "ielm"
+  '(progn
+     (define-key ielm-map (kbd "M-(") (prelude-wrap-with "("))
+     (define-key ielm-map (kbd "M-\"") (prelude-wrap-with "\""))))
+
+;; enable elisp-slime-nav-mode
+(dolist (hook '(emacs-lisp-mode-hook ielm-mode-hook))
+  (add-hook hook 'elisp-slime-nav-mode))
+
+(defun conditionally-enable-smartparens-mode ()
+  "Enable `smartparens-mode' in the minibuffer, during `eval-expression'."
+  (if (eq this-command 'eval-expression)
+      (smartparens-mode 1)))
+
+(add-hook 'minibuffer-setup-hook 'conditionally-enable-smartparens-mode)
+(prelude-require-packages '(go-mode
+                            company-go
+                            go-eldoc
+                            go-projectile
+                            gotest))
+
+(require 'go-projectile)
+
+;; Ignore go test -c output files
+(add-to-list 'completion-ignored-extensions ".test")
+
+(define-key 'help-command (kbd "G") 'godoc)
+
+(eval-after-load 'go-mode
+  '(progn
+     (defun prelude-go-mode-defaults ()
+       ;; Add to default go-mode key bindings
+       (let ((map go-mode-map))
+         (define-key map (kbd "C-c a") 'go-test-current-project) ;; current package, really
+         (define-key map (kbd "C-c m") 'go-test-current-file)
+         (define-key map (kbd "C-c .") 'go-test-current-test)
+         (define-key map (kbd "C-c b") 'go-run)
+         (define-key map (kbd "C-h f") 'godoc-at-point))
+
+       ;; Prefer goimports to gofmt if installed
+       (let ((goimports (executable-find "goimports")))
+         (when goimports
+           (setq gofmt-command goimports)))
+
+       ;; gofmt on save
+       (add-hook 'before-save-hook 'gofmt-before-save nil t)
+
+       ;; stop whitespace being highlighted
+       (whitespace-toggle-options '(tabs))
+
+       ;; Company mode settings
+       (set (make-local-variable 'company-backends) '(company-go))
+
+       ;; El-doc for Go
+       (go-eldoc-setup)
+
+       ;; CamelCase aware editing operations
+       (subword-mode +1))
+
+     (setq prelude-go-mode-hook 'prelude-go-mode-defaults)
+
+     (add-hook 'go-mode-hook (lambda ()
+                               (run-hooks 'prelude-go-mode-hook)))))
+
+;; js
+(prelude-require-packages '(js2-mode json-mode))
+
+(require 'js2-mode)
+
+(add-to-list 'auto-mode-alist '("\\.js\\'"    . js2-mode))
+(add-to-list 'auto-mode-alist '("\\.pac\\'"   . js2-mode))
+(add-to-list 'interpreter-mode-alist '("node" . js2-mode))
+
+(eval-after-load 'js2-mode
+  '(progn
+     (defun prelude-js-mode-defaults ()
+       ;; electric-layout-mode doesn't play nice with smartparens
+       (setq-local electric-layout-rules '((?\; . after)))
+       (setq mode-name "JS2")
+       (js2-imenu-extras-mode +1))
+
+     (setq prelude-js-mode-hook 'prelude-js-mode-defaults)
+
+     (add-hook 'js2-mode-hook (lambda () (run-hooks 'prelude-js-mode-hook)))))
+
+
+;; latex
+(require 'prelude-latex)
+(require 'prelude-lisp)
+(require 'prelude-org) ;; Org-mode helps you keep TODO lists, notes and more
+(require 'prelude-python)
+(require 'prelude-rust)
+(require 'prelude-scala)
+(require 'prelude-shell)
+(require 'prelude-scss)
+(require 'prelude-web) ;; Emacs mode for web templates
+(require 'prelude-xml)
+(require 'prelude-yaml)
 
 ;; config changes made through the customize UI will be stored here
 (setq custom-file (expand-file-name "custom.el" prelude-personal-dir))
