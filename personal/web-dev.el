@@ -17,7 +17,7 @@
 
 (add-hook 'prog-mode-hook 'flycheck-mode)
 
-(add-to-list 'load-path "~/workspace/html5-snippets")
+(add-to-list 'load-path "~/repos/html5-snippets")
 (require 'html5-snippets)
 
 (defun custom-web-mode-hook ()
@@ -28,3 +28,6 @@
 
 (setq web-mode-enable-auto-closing t)
 (setq web-mode-enable-auto-quoting t)
+
+
+(setq js-indent-level 2)
