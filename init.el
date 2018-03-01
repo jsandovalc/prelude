@@ -101,6 +101,14 @@ by Prelude.")
   (mapc 'load (directory-files prelude-personal-preload-dir 't "^[^#\.].*el$")))
 
 ;; the core stuff
+(require 'cl)
+(require 'package)
+;; melpa
+(add-to-list 'package-archives
+             '("melpa" . "https://melpa.org/packages/") t)
+
+
+
 (require 'prelude-packages)
 (require 'prelude-custom)  ;; Needs to be loaded before core, editor and ui
 (require 'prelude-ui)

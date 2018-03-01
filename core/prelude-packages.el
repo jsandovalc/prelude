@@ -35,11 +35,6 @@
 (require 'cl)
 (require 'package)
 
-;; accessing a package repo over https on Windows is a no go, so we
-;; fallback to http there
-(add-to-list 'package-archives
-             '("melpa" . "https://melpa.org/packages/") t)
-
 ;; load the pinned packages
 (let ((prelude-pinned-packages-file (expand-file-name "prelude-pinned-packages.el" prelude-dir)))
   (if (file-exists-p prelude-pinned-packages-file)
