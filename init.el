@@ -39,13 +39,16 @@
 ;; You may delete these explanatory comments.
 ;(package-initialize)
 
+;; Do I need this variable?.
 (defvar current-user
   (getenv
    (if (equal system-type 'windows-nt) "USERNAME" "USER")))
 
 ;; Always load newest byte code
+;; Do I need this?.
 (setq load-prefer-newer t)
 
+;; Do I need this variables?.
 (defvar prelude-dir (file-name-directory load-file-name)
   "The root dir of the Emacs Prelude distribution.")
 (defvar prelude-core-dir (expand-file-name "core" prelude-dir)
@@ -107,12 +110,6 @@ by Prelude.")
 (require 'prelude-mode)
 (require 'prelude-editor)
 (require 'prelude-global-keybindings)
-
-;; OSX specific settings
-(when (eq system-type 'darwin)
-  (require 'prelude-osx))
-
-(message "Loading Prelude's modules...")
 
 ;; the modules
 (if (file-exists-p prelude-modules-file)
