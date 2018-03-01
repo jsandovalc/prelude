@@ -22,9 +22,6 @@
 (setq projectile-completion-system 'ivy)
 
 ;; virtualenv
-(venv-initialize-interactive-shells) ;; if you want interactive shell support
-(venv-initialize-eshell) ;; of course I want eshell support
-
 (setq eshell-prompt-function
       (lambda ()
         (concat venv-current-name " $ ")))
