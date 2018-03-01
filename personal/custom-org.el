@@ -1,4 +1,4 @@
-(setq org-directory "~/repositorio/notas-org/")
+(setq org-directory "~/notas-org")
 (setq org-list-allow-alphabetical t)
 
 (setq org-default-notes-file (concat org-directory "/agenda.org"))
