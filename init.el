@@ -9,10 +9,10 @@
 
 ;; This file is not part of GNU Emacs.
 
-;;; Commentary:
+;;; Commentary:;;; Commentary:
 
-;; This file simply sets up the default load path and requires
-;; the various modules defined within Emacs Prelude.
+;;; My config is based on Prelude and inspired on Sacha Chua's
+;;; http://pages.sachachua.com/.emacs.d/Sacha.html#org332b2fd
 
 ;;; License:
 
