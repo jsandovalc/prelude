@@ -39,7 +39,6 @@
 ;; You may delete these explanatory comments.
 ;(package-initialize)
 
-;; Do I need this variable?.
 (defvar current-user
   (getenv
    (if (equal system-type 'windows-nt) "USERNAME" "USER")))
@@ -1289,8 +1288,63 @@ that can occur between two notifications.  The default is
 (key-chord-mode +1)
 
 ;;; Programming languages support
+;; prelude programming
+(defun prelude-local-comment-auto-fill ()
+  (set (make-local-variable 'comment-auto-fill-only-comments) t))
+
+(defun prelude-font-lock-comment-annotations ()
+  "Highlight a bunch of well known comment annotations.
+
+This functions should be added to the hooks of major modes for programming."
+  (font-lock-add-keywords
+   nil '(("\\<\\(\\(FIX\\(ME\\)?\\|TODO\\|OPTIMIZE\\|HACK\\|REFACTOR\\):\\)"
+          1 font-lock-warning-face t))))
+
+;; show the name of the current function definition in the modeline
+(require 'which-func)
+(which-function-mode 1)
+
+;; in Emacs 24 programming major modes generally derive from a common
+;; mode named prog-mode; for others, we'll arrange for our mode
+;; defaults function to run prelude-prog-mode-hook directly.  To
+;; augment and/or counteract these defaults your own function
+;; to prelude-prog-mode-hook, using:
+;;
+;;     (add-hook 'prelude-prog-mode-hook 'my-prog-mode-defaults t)
+;;
+;; (the final optional t sets the *append* argument)
+
+;; smart curly braces
+(sp-pair "{" nil :post-handlers
+         '(((lambda (&rest _ignored)
+              (crux-smart-open-line-above)) "RET")))
+
+;; enlist a more liberal guru
+(setq guru-warn-only t)
+
+(defun prelude-prog-mode-defaults ()
+  "Default coding hook, useful with any programming language."
+  (when (and (executable-find ispell-program-name)
+             prelude-flyspell)
+    (flyspell-prog-mode))
+  (when prelude-guru
+    (guru-mode +1))
+  (smartparens-mode +1)
+  (prelude-enable-whitespace)
+  (prelude-local-comment-auto-fill)
+  (prelude-font-lock-comment-annotations))
+
+(setq prelude-prog-mode-hook 'prelude-prog-mode-defaults)
+
+(add-hook 'prog-mode-hook (lambda ()
+                            (run-hooks 'prelude-prog-mode-hook)))
+
+;; enable on-the-fly syntax checking
+(if (fboundp 'global-flycheck-mode)
+    (global-flycheck-mode +1)
+  (add-hook 'prog-mode-hook 'flycheck-mode))
+
 ;;; prelude-c
-(require 'prelude-programming)
 
 (defun prelude-c-mode-common-defaults ()
   (setq c-default-style "k&r"
@@ -1541,17 +1595,288 @@ Start `ielm' if it's not already running."
 
 
 ;; latex
-(require 'prelude-latex)
-(require 'prelude-lisp)
-(require 'prelude-org) ;; Org-mode helps you keep TODO lists, notes and more
-(require 'prelude-python)
-(require 'prelude-rust)
-(require 'prelude-scala)
-(require 'prelude-shell)
-(require 'prelude-scss)
-(require 'prelude-web) ;; Emacs mode for web templates
-(require 'prelude-xml)
-(require 'prelude-yaml)
+(prelude-require-packages '(auctex cdlatex))
+(require 'smartparens-latex)
+;; for case
+(require 'cl)
+
+(eval-after-load "company"
+  '(progn
+     (prelude-require-packages '(company-auctex))
+     (company-auctex-init)))
+
+(defcustom prelude-latex-fast-math-entry 'LaTeX-math-mode
+  "Method used for fast math symbol entry in LaTeX."
+  :link '(function-link :tag "AUCTeX Math Mode" LaTeX-math-mode)
+  :link '(emacs-commentary-link :tag "CDLaTeX" "cdlatex.el")
+  :group 'prelude
+  :type '(choice (const :tag "None" nil)
+                 (const :tag "AUCTeX Math Mode" LaTeX-math-mode)
+                 (const :tag "CDLaTeX" cdlatex)))
+
+;; AUCTeX configuration
+(setq TeX-auto-save t)
+(setq TeX-parse-self t)
+(setq TeX-close-quote "")
+(setq TeX-open-quote "")
+
+(setq-default TeX-master nil)
+
+;; use pdflatex
+(setq TeX-PDF-mode t)
+
+;; sensible defaults for OS X, other OSes should be covered out-of-the-box
+(when (eq system-type 'darwin)
+  (setq TeX-view-program-selection
+        '((output-dvi "DVI Viewer")
+          (output-pdf "PDF Viewer")
+          (output-html "HTML Viewer")))
+
+  (setq TeX-view-program-list
+        '(("DVI Viewer" "open %o")
+          ("PDF Viewer" "open %o")
+          ("HTML Viewer" "open %o"))))
+
+(defun prelude-latex-mode-defaults ()
+  "Default Prelude hook for `LaTeX-mode'."
+  (turn-on-auto-fill)
+  (abbrev-mode +1)
+  (smartparens-mode +1)
+  (case prelude-latex-fast-math-entry
+    (LaTeX-math-mode (LaTeX-math-mode 1))
+    (cdlatex (turn-on-cdlatex))))
+
+(setq prelude-latex-mode-hook 'prelude-latex-mode-defaults)
+
+(add-hook 'LaTeX-mode-hook (lambda ()
+                             (run-hooks 'prelude-latex-mode-hook)))
+
+;; org
+(add-to-list 'auto-mode-alist '("\\.org\\’" . org-mode))
+(global-set-key "\C-cl" 'org-store-link)
+(global-set-key "\C-ca" 'org-agenda)
+(global-set-key "\C-cb" 'org-iswitchb)
+(setq org-log-done t)
+
+(defun prelude-org-mode-defaults ()
+  (let ((oldmap (cdr (assoc 'prelude-mode minor-mode-map-alist)))
+        (newmap (make-sparse-keymap)))
+    (set-keymap-parent newmap oldmap)
+    (define-key newmap (kbd "C-c +") nil)
+    (define-key newmap (kbd "C-c -") nil)
+    (define-key newmap (kbd "C-a") nil)
+    (make-local-variable 'minor-mode-overriding-map-alist)
+    (push `(prelude-mode . ,newmap) minor-mode-overriding-map-alist))
+  )
+
+(setq prelude-org-mode-hook 'prelude-org-mode-defaults)
+
+(add-hook 'org-mode-hook (lambda () (run-hooks 'prelude-org-mode-hook)))
+
+
+;; python
+(prelude-require-package 'anaconda-mode)
+
+(when (boundp 'company-backends)
+  (prelude-require-package 'company-anaconda)
+  (add-to-list 'company-backends 'company-anaconda))
+
+(require 'electric)
+
+;; Copy pasted from ruby-mode.el
+(defun prelude-python--encoding-comment-required-p ()
+  (re-search-forward "[^\0-\177]" nil t))
+
+(defun prelude-python--detect-encoding ()
+  (let ((coding-system
+         (or save-buffer-coding-system
+             buffer-file-coding-system)))
+    (if coding-system
+        (symbol-name
+         (or (coding-system-get coding-system 'mime-charset)
+             (coding-system-change-eol-conversion coding-system nil)))
+      "ascii-8bit")))
+
+(defun prelude-python--insert-coding-comment (encoding)
+  (let ((newlines (if (looking-at "^\\s *$") "\n" "\n\n")))
+    (insert (format "# coding: %s" encoding) newlines)))
+
+(defun prelude-python-mode-set-encoding ()
+  "Insert a magic comment header with the proper encoding if necessary."
+  (save-excursion
+    (widen)
+    (goto-char (point-min))
+    (when (prelude-python--encoding-comment-required-p)
+      (goto-char (point-min))
+      (let ((coding-system (prelude-python--detect-encoding)))
+        (when coding-system
+          (if (looking-at "^#!") (beginning-of-line 2))
+          (cond ((looking-at "\\s *#\\s *.*\\(en\\)?coding\\s *:\\s *\\([-a-z0-9_]*\\)")
+                 ;; update existing encoding comment if necessary
+                 (unless (string= (match-string 2) coding-system)
+                   (goto-char (match-beginning 2))
+                   (delete-region (point) (match-end 2))
+                   (insert coding-system)))
+                ((looking-at "\\s *#.*coding\\s *[:=]"))
+                (t (prelude-python--insert-coding-comment coding-system)))
+          (when (buffer-modified-p)
+            (basic-save-buffer-1)))))))
+
+(when (fboundp 'exec-path-from-shell-copy-env)
+  (exec-path-from-shell-copy-env "PYTHONPATH"))
+
+(defun prelude-python-mode-defaults ()
+  "Defaults for Python programming."
+  (subword-mode +1)
+  (anaconda-mode 1)
+  (eldoc-mode 1)
+  (setq-local electric-layout-rules
+              '((?: . (lambda ()
+                        (and (zerop (first (syntax-ppss)))
+                             (python-info-statement-starts-block-p)
+                             'after)))))
+  (when (fboundp #'python-imenu-create-flat-index)
+    (setq-local imenu-create-index-function
+                #'python-imenu-create-flat-index))
+  (add-hook 'post-self-insert-hook
+            #'electric-layout-post-self-insert-function nil 'local)
+  (add-hook 'after-save-hook 'prelude-python-mode-set-encoding nil 'local))
+
+(setq prelude-python-mode-hook 'prelude-python-mode-defaults)
+
+(add-hook 'python-mode-hook (lambda ()
+                              (run-hooks 'prelude-python-mode-hook)))
+
+
+;; rust
+(prelude-require-packages '(rust-mode
+                            racer
+                            flycheck-rust
+                            cargo))
+
+(setq rust-format-on-save t)
+
+(eval-after-load 'rust-mode
+  '(progn
+     (add-hook 'rust-mode-hook 'racer-mode)
+     (add-hook 'racer-mode-hook 'eldoc-mode)
+     (add-hook 'rust-mode-hook 'cargo-minor-mode)
+     (add-hook 'rust-mode-hook 'flycheck-rust-setup)
+     (add-hook 'flycheck-mode-hook 'flycheck-rust-setup)
+
+     (defun prelude-rust-mode-defaults ()
+       (local-set-key (kbd "C-c C-d") 'racer-describe)
+       ;; CamelCase aware editing operations
+       (subword-mode +1))
+
+     (setq prelude-rust-mode-hook 'prelude-rust-mode-defaults)
+
+     (add-hook 'rust-mode-hook (lambda ()
+                                 (run-hooks 'prelude-rust-mode-hook)))))
+
+;; scala
+(prelude-require-packages '(scala-mode ensime))
+
+(defun prelude-scala-mode-defaults ()
+  (subword-mode +1)
+  (ensime-mode +1))
+
+(setq prelude-scala-mode-hook 'prelude-scala-mode-defaults)
+
+(add-hook 'scala-mode-hook (lambda ()
+                             (run-hooks 'prelude-scala-mode-hook)))
+
+;; shell
+(require 'sh-script)
+
+;; recognize prezto files as zsh scripts
+(defvar prelude-prezto-files '("zlogin" "zlogin" "zlogout" "zpreztorc" "zprofile" "zshenv" "zshrc"))
+
+(mapc (lambda (file)
+        (add-to-list 'auto-mode-alist `(,(format "\\%s\\'" file) . sh-mode)))
+      prelude-prezto-files)
+
+(add-hook 'sh-mode-hook
+          (lambda ()
+            (if (and buffer-file-name
+                     (member (file-name-nondirectory buffer-file-name) prelude-prezto-files))
+                (sh-set-shell "zsh"))))
+
+
+;; scss (require 'prelude-scss)
+(prelude-require-packages '(scss-mode))
+
+;; turn off annoying auto-compile on save
+(setq scss-compile-at-save nil)
+
+(defun prelude-scss-mode-defaults ()
+  (prelude-css-mode-defaults))
+
+(setq prelude-scss-mode-hook 'prelude-scss-mode-defaults)
+
+(add-hook 'scss-mode-hook (lambda () (run-hooks 'prelude-scss-mode-hook)))
+
+
+;; (require 'prelude-web) ;; Emacs mode for web templates
+(prelude-require-packages '(web-mode))
+
+(require 'web-mode)
+
+(add-to-list 'auto-mode-alist '("\\.phtml\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.tpl\\.php\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.tpl\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.blade\\.php\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.jsp\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.as[cp]x\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+(add-to-list 'auto-mode-alist
+'("/\\(views\\|html\\|theme\\|templates\\)/.*\\.php\\'" . web-mode))
+
+;; make web-mode play nice with smartparens
+(setq web-mode-enable-auto-pairing nil)
+
+(sp-with-modes '(web-mode)
+  (sp-local-pair "%" "%"
+                 :unless '(sp-in-string-p)
+                 :post-handlers '(((lambda (&rest _ignored)
+                                     (just-one-space)
+                                     (save-excursion (insert " ")))
+                                   "SPC" "=" "#")))
+  (sp-local-tag "%" "<% "  " %>")
+  (sp-local-tag "=" "<%= " " %>")
+  (sp-local-tag "#" "<%# " " %>"))
+
+(eval-after-load 'web-mode
+  '(progn
+     (defun prelude-web-mode-defaults ())
+     (setq prelude-web-mode-hook 'prelude-web-mode-defaults)
+
+     (add-hook 'web-mode-hook (lambda ()
+                                (run-hooks 'prelude-web-mode-hook)))))
+
+(require 'nxml-mode)
+
+(push '("<\\?xml" . nxml-mode) magic-mode-alist)
+
+;; pom files should be treated as xml files
+(add-to-list 'auto-mode-alist '("\\.pom$" . nxml-mode))
+
+(setq nxml-child-indent 4)
+(setq nxml-attribute-indent 4)
+(setq nxml-auto-insert-xml-declaration-flag nil)
+(setq nxml-bind-meta-tab-to-complete-flag t)
+(setq nxml-slash-auto-complete-flag t)
+
+(prelude-require-packages '(yaml-mode))
+
+;; yaml-mode doesn't derive from prog-mode, but we can at least enable
+;; whitespace-mode and apply cleanup.
+(add-hook 'yaml-mode-hook 'whitespace-mode)
+(add-hook 'yaml-mode-hook 'subword-mode)
+(add-hook 'yaml-mode-hook
+          (lambda () (add-hook 'before-save-hook 'prelude-cleanup-maybe nil t)))
+
 
 ;; config changes made through the customize UI will be stored here
 (setq custom-file (expand-file-name "custom.el" prelude-personal-dir))
