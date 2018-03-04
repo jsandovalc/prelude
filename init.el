@@ -37,7 +37,7 @@
 ;; installed packages.  Don't delete this line.  If you don't want it,
 ;; just comment it out by adding a semicolon to the start of the line.
 ;; You may delete these explanatory comments.
-;(package-initialize)
+(package-initialize)
 
 ;; (defvar prelude-tips
 ;;   '("Press <C-c o> to open a file with external program."
@@ -92,8 +92,6 @@ changes in this directory.  All Emacs Lisp files there are loaded automatically
 by Prelude.")
 (defvar prelude-savefile-dir (expand-file-name "savefile" prelude-dir)
   "This folder stores all the automatically generated save/history-files.")
-(defvar prelude-modules-file (expand-file-name "prelude-modules.el" prelude-dir)
-  "This files contains a list of modules that will be loaded by Prelude.")
 
 (unless (file-exists-p prelude-savefile-dir)
   (make-directory prelude-savefile-dir))
@@ -130,7 +128,6 @@ by Prelude.")
 
 ;; set package-user-dir to be relative to Prelude install path
 (setq package-user-dir (expand-file-name "elpa" prelude-dir))
-(package-initialize)
 
 (defvar prelude-packages
   '(ace-window
@@ -1884,6 +1881,7 @@ Start `ielm' if it's not already running."
 (global-set-key (kbd "C-S-o") 'counsel-rhythmbox)
 (define-key read-expression-map (kbd "C-r") 'counsel-expression-history)
 (global-set-key "\C-s" 'swiper)
+
 (setq ivy-re-builders-alist
       ;; allow input not in order
       '((t   . ivy--regex-ignore-order)))
@@ -1895,6 +1893,8 @@ Start `ielm' if it's not already running."
 
 ;; Swiper is too slow on big files like my org. Use counsel-grep
 ;; instead.
+(require 'swiper)
+
 (defun ora-swiper ()
   (interactive)
   (if (and (buffer-file-name)
