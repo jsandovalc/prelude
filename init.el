@@ -130,10 +130,6 @@ by Prelude.")
 ;; warn when opening files bigger than 100MB
 (setq large-file-warning-threshold 100000000)
 
-;; preload the personal settings from `prelude-personal-preload-dir'
-(when (file-exists-p prelude-personal-preload-dir)
-  (mapc 'load (directory-files prelude-personal-preload-dir 't "^[^#\.].*el$")))
-
 ;; the core stuff
 ;; prelude-packages
 
@@ -1878,8 +1874,228 @@ Start `ielm' if it's not already running."
 (setq custom-file (expand-file-name "custom.el" prelude-personal-dir))
 
 ;; load the personal settings (this includes `custom-file')
-(when (file-exists-p prelude-personal-dir)
-  (message "Loading personal configuration files in %s..." prelude-personal-dir)
-  (mapc 'load (directory-files prelude-personal-dir 't "^[^#\.].*el$")))
+;; ivy for completion
+(ivy-mode 1)
+(setq ivy-use-virtual-buffers t)
+;; number of result lines to display
+(setq ivy-height 10)
+;; does not count candidates
+(setq ivy-count-format "")
+;; no regexp by default
+(setq ivy-initial-inputs-alist nil)
+(global-set-key (kbd "C-c C-r") 'ivy-resume)
+(global-set-key (kbd "<f6>") 'ivy-resume)
+;; (global-set-key (kbd "M-x") 'counsel-M-x)
+(global-set-key (kbd "C-x C-f") 'counsel-find-file)
+(global-set-key (kbd "<f1> f") 'counsel-describe-function)
+(global-set-key (kbd "<f1> v") 'counsel-describe-variable)
+(global-set-key (kbd "<f1> l") 'counsel-find-library)
+(global-set-key (kbd "<f2> i") 'counsel-info-lookup-symbol)
+(global-set-key (kbd "<f2> u") 'counsel-unicode-char)
+(global-set-key (kbd "C-c g") 'counsel-git)
+(global-set-key (kbd "C-c j") 'counsel-git-grep)
+(global-set-key (kbd "C-c k") 'counsel-ag)
+(global-set-key (kbd "C-x l") 'counsel-locate)
+(global-set-key (kbd "C-S-o") 'counsel-rhythmbox)
+(define-key read-expression-map (kbd "C-r") 'counsel-expression-history)
+(global-set-key "\C-s" 'swiper)
+(setq ivy-re-builders-alist
+      ;; allow input not in order
+      '((t   . ivy--regex-ignore-order)))
+
+(setq erc-autojoin-channels-alist
+      '(("freenode.net" "#mediagoblin" )))
+
+(yas-global-mode 1)
+
+;; Swiper is too slow on big files like my org. Use counsel-grep
+;; instead.
+(defun ora-swiper ()
+  (interactive)
+  (if (and (buffer-file-name)
+           (not (ignore-errors
+                  (file-remote-p (buffer-file-name))))
+           (if (eq major-mode 'org-mode)
+               (> (buffer-size) 60000)
+             (> (buffer-size) 300000)))
+      (progn
+        (save-buffer)
+        (counsel-grep))
+    (swiper--ivy (swiper--candidates))))
+
+(global-set-key "\C-s" 'ora-swiper)
+
+;; hideshow for programming
+(add-hook 'prog-mode-hook #'hs-minor-mode)
+
+;; Recompile
+(global-set-key (quote [f5]) 'recompile)
+
+;; TODO: Test with Cask (for pyvenv)
+;; Get the $WORKON_HOME from pyvenv.
+
+(defun custom-mkvirtualenv (directory)
+  "Creates a python virtualenv in the ~/envs directory."
+  (interactive (list (read-directory-name "Create virtualenv in: "
+                                          custom-mkvirtualenv-default-directory)))
+  (start-process "python-venv" "mkvenv-output" "python" "-m" "venv"
+                 "--without-pip" directory)
+  )
+
+(defvar custom-mkvirtualenv-default-directory "/home/ark/envs/"
+  "Initial starting point")
+
+(setq org-directory "~/notas-org")
+(setq org-list-allow-alphabetical t)
+
+(setq org-default-notes-file (concat org-directory "/agenda.org"))
+
+(define-key global-map "\C-cc" 'org-capture)
+
+(setq org-capture-templates
+      '(("t" "Todo" entry (file+headline "" "Tasks")
+         "* TODO %?\n %t\n %a\n %i")
+        ("c" "Tarea de la Corriente" entry (file+headline "" "Corriente")
+         "* TODO %?\n %t\n %a\n %i")
+        ("f" "New facturedo task" entry
+         (file+olp "" "Facturedo" "Tareas")
+         "*** TODO %?\n %i\n %a" :jump-to-captured t :empty-lines 1)))
+
+(use-package pipenv
+  :hook (python-mode . pipenv-mode)
+  :init
+  (setq
+   pipenv-projectile-after-switch-function
+   #'pipenv-projectile-after-switch-extended))
+
+(set-face-attribute 'default nil :height 105)
+
+(key-chord-define-global "xs" 'save-buffer)
+(key-chord-define-global "xl" 'projectile-test-project)
+
+(require 'notmuch)
+
+(require 'package)
+
+(add-to-list 'package-archives '("org" . "http://orgmode.org/elpa/") t)
+
+(require 'org-notmuch)
+
+(setq message-send-mail-function 'smtpmail-send-it
+      smtpmail-starttls-credentials '(("smtp.gmail.com" 587 nil nil))
+      smtpmail-auth-credentials '(("smtp.gmail.com" 587 "cloudneozero@gmail.com" nil))
+      smtpmail-default-smtp-server "smtp.gmail.com"
+      smtpmail-smtp-server "smtp.gmail.com"
+      smtpmail-smtp-service 587
+      starttls-gnutls-program "/usr/bin/gnutls-cli"
+      starttls-extra-arguments nil
+      starttls-use-gnutls t)
+
+(prelude-require-package 'monky)
+
+(require 'monky)
+(setq monky-process-type 'cmdserver)
+;; mercurial.el ends here
+
+;; Prerequisites.
+(prelude-require-package 'xml-rpc)
+(prelude-require-package 'metaweblog)
+(prelude-require-package 'org2blog)
+(prelude-require-package 'htmlize)
+
+(setq org2blog/wp-blog-alist
+      '(("wordpress"
+         :url "https://kishtablet.wordpress.com/xmlrpc.php"
+         :username "ark4"
+         :tags-as-categories nil)))
+
+;; Configuración del modo org
+(require 'package)
+
+(global-set-key "\C-ca" 'org-agenda)
+
+(setq org-agenda-files
+      (delq nil
+            (mapcar (lambda (x) (and (file-exists-p x) x))
+                    '("~/notas-org/agenda.org"))))
+
+(setq org-clock-persist 'history)
+(org-clock-persistence-insinuate)
+
+                                        ; new repo
+(add-to-list 'package-archives '("org" . "https://orgmode.org/elpa/") t)
+
+(pdf-tools-install)
+
+(prelude-require-package 'elpy)
+
+(elpy-enable)
+;; Configure flymake for Python
+(when (load "flymake" t)
+  (defun flymake-pylint-init ()
+    (let* ((temp-file (flymake-init-create-temp-buffer-copy
+                       'flymake-create-temp-inplace))
+           (local-file (file-relative-name
+                        temp-file
+                        (file-name-directory buffer-file-name))))
+      (list "epylint" (list local-file))))
+  (add-to-list 'flymake-allowed-file-name-masks
+               '("\\.py\\'" flymake-pylint-init)))
+
+;; Set as a minor mode for Python
+(add-hook 'python-mode-hook '(lambda () (flymake-mode)))
+
+(defun prelude-python--encoding-comment-required-p ()
+  nil)
+
+(setq projectile-completion-system 'ivy)
+
+;; virtualenv
+(setq eshell-prompt-function
+      (lambda ()
+        (concat venv-current-name " $ ")))
+
+(prelude-require-package 'ox-reveal)
+
+(prelude-require-package 'virtualenvwrapper)
+
+(require 'virtualenvwrapper)
+(venv-initialize-interactive-shells)
+(venv-initialize-eshell)
+(setq venv-location "~/envs/")
+
+(require 'web-mode)
+(add-to-list 'auto-mode-alist '("\\.phtml\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.tpl\\.php\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.[agj]sp\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.as[cp]x\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.mustache\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.djhtml\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.tmpl\\'" . web-mode))
+
+(add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+
+(setq projectile-tags-command "ctags-exuberant -Re -f \"%s\" %s")
+
+(add-hook 'web-mode-hook (lambda ()
+                           (web-mode-set-engine "django")))
+
+(add-hook 'prog-mode-hook 'flycheck-mode)
+
+(add-to-list 'load-path "~/repos/html5-snippets")
+(require 'html5-snippets)
+
+(defun custom-web-mode-hook ()
+  "Hooks for Web mode."
+  (setq web-mode-markup-indent-offset 2)
+)
+(add-hook 'web-mode-hook  'custom-web-mode-hook)
+
+(setq web-mode-enable-auto-closing t)
+(setq web-mode-enable-auto-quoting t)
+
+
+(setq js-indent-level 2)
 
 ;;; init.el ends here
