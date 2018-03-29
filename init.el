@@ -9,7 +9,7 @@
 
 ;; This file is not part of GNU Emacs.
 
-;;; Commentary:;;; Commentary:
+;;; Commentary:
 
 ;;; My config is based on Prelude and inspired on Sacha Chua's
 ;;; http://pages.sachachua.com/.emacs.d/Sacha.html#org332b2fd
@@ -79,8 +79,11 @@
 
 
 
+;;; Starting up
 ;; Always load newest byte code
 (setq load-prefer-newer t)
+(setq custom-file "~/.emacs.d/custom-settings.el")
+(load custom-file t)
 
 (defvar prelude-dir (file-name-directory load-file-name)
   "The root dir of the Emacs Prelude distribution.")
@@ -973,8 +976,6 @@ indent yanked text (with prefix arg don't indent)."
 (prelude-global-mode t)
 
 ;; sensible undo
-(global-undo-tree-mode)
-(diminish 'undo-tree-mode)
 
 ;; enable winner-mode to manage window configurations
 (winner-mode +1)
@@ -1852,10 +1853,7 @@ Start `ielm' if it's not already running."
           (lambda () (add-hook 'before-save-hook 'prelude-cleanup-maybe nil t)))
 
 
-;; config changes made through the customize UI will be stored here
-(setq custom-file (expand-file-name "custom.el" prelude-personal-dir))
 
-;; load the personal settings (this includes `custom-file')
 ;; ivy for completion
 (ivy-mode 1)
 (setq ivy-use-virtual-buffers t)
@@ -2015,17 +2013,6 @@ Start `ielm' if it's not already running."
 (prelude-require-package 'elpy)
 
 (elpy-enable)
-;; Configure flymake for Python
-(when (load "flymake" t)
-  (defun flymake-pylint-init ()
-    (let* ((temp-file (flymake-init-create-temp-buffer-copy
-                       'flymake-create-temp-inplace))
-           (local-file (file-relative-name
-                        temp-file
-                        (file-name-directory buffer-file-name))))
-      (list "epylint" (list local-file))))
-  (add-to-list 'flymake-allowed-file-name-masks
-               '("\\.py\\'" flymake-pylint-init)))
 
 ;; Set as a minor mode for Python
 (add-hook 'python-mode-hook '(lambda () (flymake-mode)))
