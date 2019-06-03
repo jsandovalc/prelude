@@ -853,6 +853,10 @@ The body of the advice is in BODY."
 (setq projectile-cache-file (expand-file-name  "projectile.cache" prelude-savefile-dir))
 (projectile-global-mode t)
 
+;; Keymapping projectile
+(define-key projectile-mode-map (kbd "s-p") 'projectile-command-map)
+(define-key projectile-mode-map (kbd "C-c p") 'projectile-command-map)
+
 ;; avy allows us to effectively navigate to visible things
 (require 'avy)
 (setq avy-background t)
@@ -1916,6 +1920,7 @@ Start `ielm' if it's not already running."
 
 ;; TODO: Test with Cask (for pyvenv)
 ;; Get the $WORKON_HOME from pyvenv.
+(setenv "WORKON_HOME" "/home/ark/.local/share/virtualenvs/")
 
 (defun custom-mkvirtualenv (directory)
   "Creates a python virtualenv in the ~/envs directory."
@@ -1963,6 +1968,9 @@ Start `ielm' if it's not already running."
 (add-to-list 'package-archives '("org" . "http://orgmode.org/elpa/") t)
 
 (require 'org-notmuch)
+
+;; notmuch config
+(setq notmuch-search-oldest-first nil)
 
 (setq message-send-mail-function 'smtpmail-send-it
       smtpmail-starttls-credentials '(("smtp.gmail.com" 587 nil nil))
@@ -2055,7 +2063,7 @@ Start `ielm' if it's not already running."
 
 (add-hook 'prog-mode-hook 'flycheck-mode)
 
-(add-to-list 'load-path "~/repos/html5-snippets")
+(add-to-list 'load-path "~/workspace/html5-snippets")
 (require 'html5-snippets)
 
 (defun custom-web-mode-hook ()
@@ -2069,5 +2077,37 @@ Start `ielm' if it's not already running."
 
 
 (setq js-indent-level 2)
+
+;; Custom elpy commands
+
+;; (defun custom-elpy-test-runner-create
+;;   (interactive)
+;;   (apply #'elpy-test-run (car (elpy-test-at-point))
+;;          (append elpy-test-pytest-runner-command
+;;                  (list "-n")
+;;                  (list "4")
+;;                  (list "--create-db")))
+
+(defun elpy-test-pytest-runner (top file module test)
+  "Test the project using the py.test test runner.
+This requires the pytest package to be installed.
+This custom add -n4 only to global run."
+  (interactive (elpy-test-at-point))
+  (cond
+   (test
+    (let ((test-list (split-string test "\\.")))
+      (apply #'elpy-test-run
+             top
+             (append elpy-test-pytest-runner-command
+                     (list (mapconcat #'identity
+                                      (cons file test-list)
+                                      "::"))))))
+   (module
+    (apply #'elpy-test-run top (append elpy-test-pytest-runner-command
+                                       (list file))))
+   (t
+    (apply #'elpy-test-run top
+           (append elpy-test-pytest-runner-command
+                   (list "-n4"))))))
 
 ;;; init.el ends here
