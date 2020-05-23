@@ -100,13 +100,13 @@ by Prelude.")
   (make-directory prelude-savefile-dir))
 
 (defun prelude-add-subfolders-to-load-path (parent-dir)
- "Add all level PARENT-DIR subdirs to the `load-path'."
- (dolist (f (directory-files parent-dir))
-   (let ((name (expand-file-name f parent-dir)))
-     (when (and (file-directory-p name)
-                (not (string-prefix-p "." f)))
-       (add-to-list 'load-path name)
-       (prelude-add-subfolders-to-load-path name)))))
+  "Add all level PARENT-DIR subdirs to the `load-path'."
+  (dolist (f (directory-files parent-dir))
+    (let ((name (expand-file-name f parent-dir)))
+      (when (and (file-directory-p name)
+                 (not (string-prefix-p "." f)))
+        (add-to-list 'load-path name)
+        (prelude-add-subfolders-to-load-path name)))))
 
 ;; reduce the frequency of garbage collection by making it happen on
 ;; each 50MB of allocated data (the default is on every 0.76MB)
@@ -387,8 +387,8 @@ Only modes that don't derive from `prog-mode' should be listed here."
 ;; buffer name (if the buffer isn't visiting a file)
 (setq frame-title-format
       '("" invocation-name " Prelude - " (:eval (if (buffer-file-name)
-                                            (abbreviate-file-name (buffer-file-name))
-                                          "%b"))))
+                                                    (abbreviate-file-name (buffer-file-name))
+                                                  "%b"))))
 
 ;; use zenburn as the default theme
 (when prelude-theme
@@ -431,9 +431,9 @@ PROMPT sets the `read-string prompt."
 (defmacro prelude-install-search-engine (search-engine-name search-engine-url search-engine-prompt)
   "Given some information regarding a search engine, install the interactive command to search through them"
   `(defun ,(intern (format "prelude-%s" search-engine-name)) ()
-       ,(format "Search %s with a query or region if any." search-engine-name)
-       (interactive)
-       (prelude-search ,search-engine-url ,search-engine-prompt)))
+     ,(format "Search %s with a query or region if any." search-engine-name)
+     (interactive)
+     (prelude-search ,search-engine-url ,search-engine-prompt)))
 
 (prelude-install-search-engine "google"     "http://www.google.com/search?q="              "Google: ")
 (prelude-install-search-engine "youtube"    "http://www.youtube.com/results?search_query=" "Search YouTube: ")
@@ -575,45 +575,6 @@ This follows freedesktop standards, should work in X servers."
     map)
   "Keymap for Prelude mode.")
 
-(defun prelude-mode-add-menu ()
-  "Add a menu entry for `prelude-mode' under Tools."
-  (easy-menu-add-item nil '("Tools")
-                      '("Prelude"
-                        ("Files"
-                         ["Open with..." crux-open-with]
-                         ["Delete file and buffer" crux-delete-file-and-buffer]
-                         ["Rename buffer and file" crux-rename-buffer-and-file])
-
-                        ("Buffers"
-                         ["Clean up buffer or region" crux-cleanup-buffer-or-region]
-                         ["Kill other buffers" crux-kill-other-buffers])
-
-                        ("Editing"
-                         ["Insert empty line" prelude-insert-empty-line]
-                         ["Move line up" prelude-move-line-up]
-                         ["Move line down" prelude-move-line-down]
-                         ["Duplicate line or region" prelude-duplicate-current-line-or-region]
-                         ["Indent rigidly and copy to clipboard" crux-indent-rigidly-and-copy-to-clipboard]
-                         ["Insert date" crux-insert-date]
-                         ["Eval and replace" crux-eval-and-replace]
-                         )
-
-                        ("Windows"
-                         ["Swap windows" crux-swap-windows])
-
-                        ("General"
-                         ["Visit term buffer" crux-visit-term-buffer]
-                         ["Search in Google" prelude-google]
-                         ["View URL" crux-view-url]))
-                      "Search Files (Grep)...")
-
-  (easy-menu-add-item nil '("Tools") '("--") "Search Files (Grep)..."))
-
-(defun prelude-mode-remove-menu ()
-  "Remove `prelude-mode' menu entry."
-  (easy-menu-remove-item nil '("Tools") "Prelude")
-  (easy-menu-remove-item nil '("Tools") "--"))
-
 ;; define minor mode
 (define-minor-mode prelude-mode
   "Minor mode to consolidate Emacs Prelude extensions.
@@ -621,11 +582,7 @@ This follows freedesktop standards, should work in X servers."
 \\{prelude-mode-map}"
   :lighter " Pre"
   :keymap prelude-mode-map
-  (if prelude-mode
-      ;; on start
-      (prelude-mode-add-menu)
-    ;; on stop
-    (prelude-mode-remove-menu)))
+)
 
 (define-globalized-minor-mode prelude-global-mode prelude-mode prelude-on)
 
@@ -774,9 +731,6 @@ The body of the advice is in BODY."
 
 (add-hook 'mouse-leave-buffer-hook 'prelude-auto-save-command)
 
-(when (version<= "24.4" emacs-version)
-  (add-hook 'focus-out-hook 'prelude-auto-save-command))
-
 (defadvice set-buffer-major-mode (after set-major-mode activate compile)
   "Set buffer major mode according to `auto-mode-alist'."
   (let* ((name (buffer-name buffer))
@@ -920,14 +874,14 @@ The body of the advice is in BODY."
       (indent-region beg end nil)))
 
 (advise-commands "indent" (yank yank-pop) after
-  "If current mode is one of `prelude-yank-indent-modes',
+                 "If current mode is one of `prelude-yank-indent-modes',
 indent yanked text (with prefix arg don't indent)."
-  (if (and (not (ad-get-arg 0))
-           (not (member major-mode prelude-indent-sensitive-modes))
-           (or (derived-mode-p 'prog-mode)
-               (member major-mode prelude-yank-indent-modes)))
-      (let ((transient-mark-mode nil))
-        (yank-advised-indent-function (region-beginning) (region-end)))))
+                 (if (and (not (ad-get-arg 0))
+                          (not (member major-mode prelude-indent-sensitive-modes))
+                          (or (derived-mode-p 'prog-mode)
+                              (member major-mode prelude-yank-indent-modes)))
+                     (let ((transient-mark-mode nil))
+                       (yank-advised-indent-function (region-beginning) (region-end)))))
 
 ;; abbrev config
 (add-hook 'text-mode-hook 'abbrev-mode)
@@ -941,7 +895,7 @@ indent yanked text (with prefix arg don't indent)."
 
 ;; whitespace-mode config
 (require 'whitespace)
-(setq whitespace-line-column 80) ;; limit line length
+(setq whitespace-line-column 89) ;; In Django, I use 89
 (setq whitespace-style '(face tabs empty trailing lines-tail))
 
 ;; saner regex syntax
@@ -1050,7 +1004,7 @@ and file 'filename' will be opened and cursor set on line 'linenumber'"
 (global-set-key (kbd "C-^") 'crux-top-join-line)
 ;; Start proced in a similar manner to dired
 (unless (eq system-type 'darwin)
-    (global-set-key (kbd "C-x p") 'proced))
+  (global-set-key (kbd "C-x p") 'proced))
 
 ;; Start eshell or switch to it if it's active.
 (global-set-key (kbd "C-x m") 'eshell)
@@ -1596,25 +1550,13 @@ Start `ielm' if it's not already running."
 ;; AUCTeX configuration
 (setq TeX-auto-save t)
 (setq TeX-parse-self t)
-(setq TeX-close-quote "")
-(setq TeX-open-quote "")
+(setq TeX-close-quote "''")
+(setq TeX-open-quote "``")
 
 (setq-default TeX-master nil)
 
 ;; use pdflatex
 (setq TeX-PDF-mode t)
-
-;; sensible defaults for OS X, other OSes should be covered out-of-the-box
-(when (eq system-type 'darwin)
-  (setq TeX-view-program-selection
-        '((output-dvi "DVI Viewer")
-          (output-pdf "PDF Viewer")
-          (output-html "HTML Viewer")))
-
-  (setq TeX-view-program-list
-        '(("DVI Viewer" "open %o")
-          ("PDF Viewer" "open %o")
-          ("HTML Viewer" "open %o"))))
 
 (defun prelude-latex-mode-defaults ()
   "Default Prelude hook for `LaTeX-mode'."
@@ -1708,6 +1650,7 @@ Start `ielm' if it's not already running."
   "Defaults for Python programming."
   (subword-mode +1)
   (anaconda-mode 1)
+  (setq-local whitespace-line-column 89)
   (eldoc-mode 1)
   (setq-local electric-layout-rules
               '((?: . (lambda ()
@@ -1810,7 +1753,15 @@ Start `ielm' if it's not already running."
 (add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
 (add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
 (add-to-list 'auto-mode-alist
-'("/\\(views\\|html\\|theme\\|templates\\)/.*\\.php\\'" . web-mode))
+             '("/\\(views\\|html\\|theme\\|templates\\)/.*\\.php\\'" . web-mode))
+
+(add-to-list 'auto-mode-alist '("\\.tpl\\.php\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.[agj]sp\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.mustache\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.djhtml\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.tmpl\\'" . web-mode))
+
+(add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
 
 ;; make web-mode play nice with smartparens
 (setq web-mode-enable-auto-pairing nil)
@@ -1897,21 +1848,6 @@ Start `ielm' if it's not already running."
 ;; instead.
 (require 'swiper)
 
-(defun ora-swiper ()
-  (interactive)
-  (if (and (buffer-file-name)
-           (not (ignore-errors
-                  (file-remote-p (buffer-file-name))))
-           (if (eq major-mode 'org-mode)
-               (> (buffer-size) 60000)
-             (> (buffer-size) 300000)))
-      (progn
-        (save-buffer)
-        (counsel-grep))
-    (swiper--ivy (swiper--candidates))))
-
-(global-set-key "\C-s" 'ora-swiper)
-
 ;; hideshow for programming
 (add-hook 'prog-mode-hook #'hs-minor-mode)
 
@@ -1922,55 +1858,27 @@ Start `ielm' if it's not already running."
 ;; Get the $WORKON_HOME from pyvenv.
 (setenv "WORKON_HOME" "/home/ark/.local/share/virtualenvs/")
 
-(defun custom-mkvirtualenv (directory)
-  "Creates a python virtualenv in the ~/envs directory."
-  (interactive (list (read-directory-name "Create virtualenv in: "
-                                          custom-mkvirtualenv-default-directory)))
-  (start-process "python-venv" "mkvenv-output" "python" "-m" "venv"
-                 "--without-pip" directory)
-  )
-
-(defvar custom-mkvirtualenv-default-directory "/home/ark/envs/"
-  "Initial starting point")
-
-(setq org-directory "~/notas-org")
+(setq org-directory "~/workspace/project-management/")
 (setq org-list-allow-alphabetical t)
 
 (setq org-default-notes-file (concat org-directory "/agenda.org"))
 
 (define-key global-map "\C-cc" 'org-capture)
 
-(setq org-capture-templates
-      '(("t" "Todo" entry (file+headline "" "Tasks")
-         "* TODO %?\n %t\n %a\n %i")
-        ("c" "Tarea de la Corriente" entry (file+headline "" "Corriente")
-         "* TODO %?\n %t\n %a\n %i")
-        ("f" "New facturedo task" entry
-         (file+olp "" "Facturedo" "Tareas")
-         "*** TODO %?\n %i\n %a" :jump-to-captured t :empty-lines 1)))
-
-(use-package pipenv
-  :hook (python-mode . pipenv-mode)
-  :init
-  (setq
-   pipenv-projectile-after-switch-function
-   #'pipenv-projectile-after-switch-extended))
+;; (setq org-capture-templates
+;;       '(
+;;         ("c" "Corriente task" entry (file+headline "" "Corriente")
+;;          "* TODO %?\n %t\n %a\n %i")
+;;         ("f" "Facturedo task" entry
+;;          (file+olp "" "Facturedo" "Tareas")
+;;          "*** TODO %?\n %i\n %a" :jump-to-captured t :empty-lines 1)))
 
 (set-face-attribute 'default nil :height 105)
 
 (key-chord-define-global "xs" 'save-buffer)
 (key-chord-define-global "xl" 'projectile-test-project)
 
-(require 'notmuch)
-
-(require 'package)
-
 (add-to-list 'package-archives '("org" . "http://orgmode.org/elpa/") t)
-
-(require 'org-notmuch)
-
-;; notmuch config
-(setq notmuch-search-oldest-first nil)
 
 (setq message-send-mail-function 'smtpmail-send-it
       smtpmail-starttls-credentials '(("smtp.gmail.com" 587 nil nil))
@@ -2000,9 +1908,6 @@ Start `ielm' if it's not already running."
          :username "ark4"
          :tags-as-categories nil)))
 
-;; Configuración del modo org
-(require 'package)
-
 (global-set-key "\C-ca" 'org-agenda)
 
 (setq org-agenda-files
@@ -2031,30 +1936,16 @@ Start `ielm' if it's not already running."
 (setq projectile-completion-system 'ivy)
 
 ;; virtualenv
-(setq eshell-prompt-function
-      (lambda ()
-        (concat venv-current-name " $ ")))
-
 (prelude-require-package 'ox-reveal)
+
+(setq org-reveal-root "/home/ark/src/reveal.js-3.9.2/")
 
 (prelude-require-package 'virtualenvwrapper)
 
 (require 'virtualenvwrapper)
 (venv-initialize-interactive-shells)
 (venv-initialize-eshell)
-(setq venv-location "~/envs/")
-
-(require 'web-mode)
-(add-to-list 'auto-mode-alist '("\\.phtml\\'" . web-mode))
-(add-to-list 'auto-mode-alist '("\\.tpl\\.php\\'" . web-mode))
-(add-to-list 'auto-mode-alist '("\\.[agj]sp\\'" . web-mode))
-(add-to-list 'auto-mode-alist '("\\.as[cp]x\\'" . web-mode))
-(add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
-(add-to-list 'auto-mode-alist '("\\.mustache\\'" . web-mode))
-(add-to-list 'auto-mode-alist '("\\.djhtml\\'" . web-mode))
-(add-to-list 'auto-mode-alist '("\\.tmpl\\'" . web-mode))
-
-(add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+(setq venv-location "~/.local/share/virtualenvs/")
 
 (setq projectile-tags-command "ctags-exuberant -Re -f \"%s\" %s")
 
@@ -2064,12 +1955,13 @@ Start `ielm' if it's not already running."
 (add-hook 'prog-mode-hook 'flycheck-mode)
 
 (add-to-list 'load-path "~/workspace/html5-snippets")
+
 (require 'html5-snippets)
 
 (defun custom-web-mode-hook ()
   "Hooks for Web mode."
   (setq web-mode-markup-indent-offset 2)
-)
+  )
 (add-hook 'web-mode-hook  'custom-web-mode-hook)
 
 (setq web-mode-enable-auto-closing t)
@@ -2079,14 +1971,6 @@ Start `ielm' if it's not already running."
 (setq js-indent-level 2)
 
 ;; Custom elpy commands
-
-;; (defun custom-elpy-test-runner-create
-;;   (interactive)
-;;   (apply #'elpy-test-run (car (elpy-test-at-point))
-;;          (append elpy-test-pytest-runner-command
-;;                  (list "-n")
-;;                  (list "4")
-;;                  (list "--create-db")))
 
 (defun elpy-test-pytest-runner (top file module test)
   "Test the project using the py.test test runner.
@@ -2109,5 +1993,227 @@ This custom add -n4 only to global run."
     (apply #'elpy-test-run top
            (append elpy-test-pytest-runner-command
                    (list "-n4"))))))
+
+
+;;; custom ediff
+
+(add-to-list 'load-path "/usr/local/share/emacs/site-lisp/mu4e/")
+(require 'mu4e)
+
+;; store link to message if in header view, not to header query
+(setq org-mu4e-link-query-in-headers-mode nil)
+
+;; use mu4e for e-mail in emacs
+(setq mail-user-agent 'mu4e-user-agent)
+
+;; default
+;; (setq mu4e-maildir "~/Maildir")
+
+(setq mu4e-drafts-folder "/[Gmail].Drafts")
+(setq mu4e-sent-folder   "/[Gmail].Sent Mail")
+(setq mu4e-trash-folder  "/[Gmail].Trash")
+
+;; don't save message to Sent Messages, Gmail/IMAP takes care of this
+(setq mu4e-sent-messages-behavior 'delete)
+
+;; (See the documentation for `mu4e-sent-messages-behavior' if you have
+;; additional non-Gmail addresses and want assign them different
+;; behavior.)
+
+;; setup some handy shortcuts
+;; you can quickly switch to your Inbox -- press ``ji''
+;; then, when you want archive some messages, move them to
+;; the 'All Mail' folder by pressing ``ma''.
+
+(setq mu4e-maildir-shortcuts
+      '( ("/INBOX"               . ?i)
+         ("/[Gmail].Sent Mail"   . ?s)
+         ("/[Gmail].Trash"       . ?t)
+         ("/[Gmail].All Mail"    . ?a)))
+
+;; allow for updating mail using 'U' in the main view:
+(setq mu4e-get-mail-command "offlineimap")
+
+;; something about ourselves
+(setq
+ user-mail-address "cloudneozero@gmail.com"
+ user-full-name  "Jonathan Sandoval"
+ mu4e-compose-signature
+ (concat
+  ""
+  ""))
+
+;; sending mail -- replace USERNAME with your gmail username
+;; also, make sure the gnutls command line utils are installed
+;; package 'gnutls-bin' in Debian/Ubuntu
+
+(require 'smtpmail)
+(setq message-send-mail-function 'smtpmail-send-it
+      starttls-use-gnutls t
+      smtpmail-starttls-credentials '(("smtp.gmail.com" 587 nil nil))
+      smtpmail-auth-credentials
+      '(("smtp.gmail.com" 587 "cloudneozero@gmail.com" nil))
+      smtpmail-default-smtp-server "smtp.gmail.com"
+      smtpmail-smtp-server "smtp.gmail.com"
+      smtpmail-smtp-service 587)
+
+;; don't keep message buffers around
+(setq message-kill-buffer-on-exit t)
+
+(setq
+ mu4e-index-cleanup nil      ;; don't do a full cleanup check
+ mu4e-index-lazy-check t)    ;; don't consider up-to-date dirs
+
+(setq mu4e-refile-folder "/[Gmail].Todos")
+
+(add-to-list 'load-path "~/.emacs.d/vendor/")
+(require 'write-or-die)
+
+(require 'org-journal)
+
+;; TODO:
+;; 1. Include first and last days in calendar.
+
+(defun me-org-journal-export (filename)
+  "Export org-journal date range to FILENAME."
+  (interactive "FExport file: ")
+  (let* (contents
+         (period-pair (org-journal-read-period 'nil))
+         (start (org-journal-calendar-date->time (car period-pair)))
+         (end (org-journal-calendar-date->time (cdr period-pair)))
+         (files (org-journal-search-build-file-list start end)))
+    (dolist (file files)
+      (when (file-regular-p file)
+        (push (with-temp-buffer
+                (insert-file-contents file)
+                (buffer-string))
+              contents)))
+    (write-region (mapconcat #'identity contents "\n")
+                  nil filename)))
+
+;; To drag 'n drop images.
+
+(require 'org-download)
+
+;; Drag-and-drop to `dired`
+(add-hook 'dired-mode-hook 'org-download-enable)
+
+;; eshell
+(setq eshell-prompt-function (lambda () (concat venv-current-name " $ ")))
+
+;; Extra ediff
+;; https://emacs.stackexchange.com/questions/19339/how-to-use-both-variants-in-ediff
+(defun ediff-copy-both-to-C ()
+  (interactive)
+  (ediff-copy-diff ediff-current-difference nil 'C nil
+                   (concat
+                    (ediff-get-region-contents ediff-current-difference 'A ediff-control-buffer)
+                    (ediff-get-region-contents ediff-current-difference 'B ediff-control-buffer))))
+(defun add-d-to-ediff-mode-map () (define-key ediff-mode-map "d" 'ediff-copy-both-to-C))
+(add-hook 'ediff-keymap-setup-hook 'add-d-to-ediff-mode-map)
+
+;; Magit
+;; (use-package forge :after magit :ensure t)
+;; forge slows my magit usage.
+
+;; Custom
+(setq org-highlight-latex-and-related '(latex))
+(defun cd (dir)
+  "Make DIR become the current buffer's default directory.
+If your environment includes a `CDPATH' variable, try each one of
+that list of directories (separated by occurrences of
+`path-separator') when resolving a relative directory name.
+The path separator is colon in GNU and GNU-like systems."
+  (interactive
+   (list
+    ;; FIXME: There's a subtle bug in the completion below.  Seems linked
+    ;; to a fundamental difficulty of implementing `predicate' correctly.
+    ;; The manifestation is that TAB may list non-directories in the case where
+    ;; those files also correspond to valid directories (if your cd-path is (A/
+    ;; B/) and you have A/a a file and B/a a directory, then both `a' and `a/'
+    ;; will be listed as valid completions).
+    ;; This is because `a' (listed because of A/a) is indeed a valid choice
+    ;; (which will lead to the use of B/a).
+    (minibuffer-with-setup-hook
+        (lambda ()
+          (setq minibuffer-completion-table
+                (apply-partially #'locate-file-completion-table
+                                 cd-path nil))
+          (setq minibuffer-completion-predicate
+                (lambda (dir)
+                  (locate-file dir cd-path nil
+                               (lambda (f) (and (file-directory-p f) 'dir-ok))))))
+      (unless cd-path
+        (setq cd-path (or (parse-colon-path (getenv "CDPATH"))
+                          (list "./"))))
+      (read-directory-name "Change default directory: "
+                           default-directory default-directory
+                           t))))
+  (unless cd-path
+    (setq cd-path (or (parse-colon-path (getenv "CDPATH"))
+                      (list "./"))))
+  (cd-absolute
+   (or (locate-file dir (cons default-directory cd-path) nil
+                    (lambda (f) (and (file-directory-p f) 'dir-ok)))
+       (error "No such directory found via CDPATH environment variable"))))
+
+
+;; org-babel
+(org-babel-do-load-languages
+ 'org-babel-load-languages
+ '(
+   (python . t)
+   (dot . t)
+   (ditaa . t)
+   (latex . t)
+   ;; Include other languages here...
+   ))
+
+
+;; umlplant
+(setq org-plantuml-jar-path (expand-file-name "/home/ark/bin/plantuml.jar"))
+(add-to-list
+ 'org-src-lang-modes '("plantuml" . plantuml))
+
+(org-babel-do-load-languages 'org-babel-load-languages '((plantuml . t)))
+
+(with-eval-after-load 'ox-latex
+  (add-to-list 'org-latex-classes
+               '("acmsmall"
+                 "\\documentclass{acmart}"
+                 ("\\section{%s}" . "\\section*{%s}")
+                 ("\\subsection{%s}" . "\\subsection*{%s}")
+                 ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
+  (add-to-list 'org-latex-classes
+               '("elsarticle"
+                 "\\documentclass{elsarticle}"
+                 ("\\section{%s}" . "\\section*{%s}")
+                 ("\\subsection{%s}" . "\\subsection*{%s}")
+                 ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
+  (add-to-list 'org-latex-classes
+               '("tufte-handout"
+                 "\\documentclass{tufte-handout}"
+                 ("\\section{%s}" . "\\section*{%s}")
+                 ("\\subsection{%s}" . "\\subsection*{%s}")
+                 ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
+  )
+
+
+
+
+(setq elfeed-feeds
+      '(("http://asert.arbornetworks.com/feed/" security second)
+        ))
+
+(setq elpy-rpc-pythonpath "/home/ark/.emacs.d/elpa/elpy-20200510.1559/")
+
+; edit-server
+(require 'edit-server)
+(edit-server-start)
+
+(autoload 'edit-server-maybe-dehtmlize-buffer "edit-server-htmlize" "edit-server-htmlize" t)
+(autoload 'edit-server-maybe-htmlize-buffer   "edit-server-htmlize" "edit-server-htmlize" t)
+(add-hook 'edit-server-start-hook 'edit-server-maybe-dehtmlize-buffer)
+(add-hook 'edit-server-done-hook  'edit-server-maybe-htmlize-buffer)
 
 ;;; init.el ends here
